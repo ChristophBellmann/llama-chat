@@ -1,10 +1,26 @@
-# Python cache
+# Python
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
 
-# Hidden directories (".*-Ordner") anywhere
-.*/
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
 
-# Large model files (keep notes/placeholders in models/)
+# Logs / runtime
+*.log
+*.pid
+
+# Local model artifacts (keep folder structure via README/.gitkeep)
+models/*
+!models/README.md
+!models/.gitkeep
 models/**/*.gguf
 models/**/*.bin
 models/**/*.safetensors
@@ -12,4 +28,16 @@ models/**/*.pt
 models/**/*.pth
 models/**/*.onnx
 
-!models/README.md
+# Local Ollama data and binaries (keep docs only)
+ollama-models/**
+!ollama-models/
+!ollama-models/README.md
+ollama-local/**
+!ollama-local/
+!ollama-local/README.md
+
+# Voice runtime outputs (keep folder structure only)
+voice/runtime/**
+!voice/runtime/
+!voice/runtime/README.md
+!voice/runtime/.gitkeep
