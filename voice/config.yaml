@@ -1,0 +1,28 @@
+audio:
+  backend: "pipewire"
+  input_device: ""
+  output_device: ""
+  sample_rate: 16000
+  channels: 1
+  max_record_seconds: 12
+
+stt:
+  whispercpp_bin: "./third_party/whisper.cpp/build/bin/whisper-cli"
+  model_path: "./third_party/whisper.cpp/models/ggml-small.bin"
+  lang: "de"
+
+llm:
+  bin: "./llama-cli"
+  model_path: "./models/Qwen3.5-9B-Q4_K_M.gguf"
+  context: 8192
+  ngl: 99
+  temperature: 0.7
+  top_p: 0.9
+  max_tokens: 400
+
+tts:
+  piper_bin: "piper"
+  model_path: "./third_party/piper/de_DE-voice.onnx"
+
+prompts:
+  system: "Du bist ein hilfreicher Sprachassistent. Antworte auf Deutsch, klar und kurz."

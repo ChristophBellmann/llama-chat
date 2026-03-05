@@ -1,0 +1,50 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.python-version
+.venv/
+venv/
+env/
+
+# Logs / runtime state
+*.log
+*.pid
+*.tmp
+*.bak
+
+# Local runtime artifacts
+voice/runtime/
+
+# Local model files and caches (large / machine-specific)
+models/
+ollama-models/
+ollama-local/
+
+# llama.cpp local build artifacts
+llama.cpp/build/
+llama.cpp/bin/
+llama.cpp/lib/
+llama.cpp/ggml-metal.metal
+
+# C/C++ build outputs
+*.o
+*.obj
+*.so
+*.a
+*.dylib
+*.dll
+
+# Optional env files
+.env
+.env.*
