@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-piper/
 venv/
 env/
 .pytest_cache/
@@ -41,3 +42,9 @@ voice/runtime/**
 !voice/runtime/
 !voice/runtime/README.md
 !voice/runtime/.gitkeep
+
+# Voice models (local artifacts; keep optional placeholders only)
+voice/models/**
+!voice/models/
+!voice/models/README.md
+!voice/models/.gitkeep
