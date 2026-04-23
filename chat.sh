@@ -10,6 +10,7 @@ RECORD_PTT_SH="$VOICE_BIN_DIR/record_ptt.sh"
 STT_SH="$VOICE_BIN_DIR/stt_whispercpp.sh"
 
 DEFAULT_MODEL_CANDIDATES=(
+  "$ROOT_DIR/models/Qwen3-14B-Q4_K_M.gguf"
   "$ROOT_DIR/models/Qwen3.6-27B-Q4_K_M.gguf"
   "$ROOT_DIR/models/Qwen3.6-27B-Instruct-Q4_K_M.gguf"
   "$ROOT_DIR/models/Qwen_Qwen3.6-27B-Q4_K_M.gguf"
