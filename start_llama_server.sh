@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$ROOT_DIR/llama.cpp/build/bin"
-MODEL_PATH="${1:-$ROOT_DIR/models/Qwen3.5-9B-Q4_K_M.gguf}"
+MODEL_PATH="${1:-$ROOT_DIR/models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf}"
 MODEL_ALIAS="${MODEL_ALIAS:-qwen-local}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8080}"

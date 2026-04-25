@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 .venv-piper/
+.venv-llm/
 venv/
 env/
 .pytest_cache/
@@ -28,6 +29,9 @@ models/**/*.safetensors
 models/**/*.pt
 models/**/*.pth
 models/**/*.onnx
+
+# Local experiments / cloned helper repos
+kiv/
 
 # Local Ollama data and binaries (keep docs only)
 ollama-models/**

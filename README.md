@@ -1,9 +1,34 @@
 # LLM im Terminal mit ROCm (`/opt/rocm`)
 
+## Standard-Workflow (Empfohlen)
+
+Default ist jetzt: `llama-server` + `OpenCode`.
+
+1. `llama-server` starten (Terminal A):
+
+```bash
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+./start_llama_server.sh
+```
+
+2. Im Ziel-Repo arbeiten (Terminal B):
+
+```bash
+cd /pfad/zu/deinem/repo
+opencode .
+```
+
+Hinweise:
+- `opencode` nutzt global standardmaessig `llama.cpp/qwen-local`.
+- Default-Modell fuer `start_llama_server.sh`:
+  `models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf`
+- Aktueller Default-Kontext:
+  `49152` (Server + OpenCode-Limit)
+
 ## TL;DR
 
 ```bash
-cd /media/christoph/some_space/Compute/Mogli-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
 # qwen3.6-27b gguf laden (optional, empfohlen)
 ./download_qwen36_27b.sh
 # text-chat (default, ohne STT/TTS)
@@ -54,7 +79,7 @@ Beide Varianten sind auf deine AMD-GPU mit ROCm ausgelegt.
 ## Quickstart
 
 ```bash
-cd /media/christoph/some_space/Compute/Mogli-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
 ```
 
 ### Option A: Roh mit `llama.cpp`
@@ -171,12 +196,16 @@ OLLAMA_HOST=http://127.0.0.1:11434 OLLAMA_MODELS=$PWD/ollama-models ./ollama-loc
 ## Wichtige Dateien
 
 - `chat.sh` -> Roh-Chat mit `llama.cpp`
+- `start_llama_server.sh` -> OpenAI-kompatibler `llama-server` fuer OpenCode
+- `start_kiv_server.sh` -> KIV-Server (ollama-API)
+- `test_kiv_opencode.sh` -> kurzer OpenCode-Check gegen KIV
 - `start_ollama.sh` -> startet lokalen Ollama-Server
 - `chat_ollama.sh` -> startet Chat über Ollama
 - `chat_ollama_files.sh` -> Ollama-Chat mit Datei-Bridge (`/read`)
 - `stop_ollama.sh` -> stoppt lokalen Ollama-Server
 - `download_qwen36_27b.sh` -> laedt Qwen3.6-27B-GGUF nach `models/`
 - `Modelfile.qwen35-local` -> Definition des lokalen Ollama-Modells
+- `models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf` -> Default fuer `start_llama_server.sh`
 - `models/Qwen3.6-27B-Q4_K_M.gguf` -> bevorzugtes GGUF-Modell fuer `chat.sh`
 - `models/Qwen3.5-9B-Q4_K_M.gguf` -> Fallback-GGUF
 
