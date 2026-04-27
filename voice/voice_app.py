@@ -30,6 +30,10 @@ VOICE_MAP = {
 
 CUSTOM_RE = re.compile(r"<custom_token_(\d+)>")
 
+_HTTP = requests.Session()
+_SNAC_CACHE = {}
+
+
 
 # -----------------------------------------------------------------------------
 # Audio helpers
@@ -184,24 +188,33 @@ def token_text_to_codes(text: str) -> list[int]:
     return codes
 
 
-def decode_snac_codes(codes: list[int]) -> tuple[int, np.ndarray]:
+def _get_snac_model(device: str):
+    cached = _SNAC_CACHE.get(device)
+    if cached is not None:
+        return cached
+
     import torch
     from snac import SNAC
 
+    model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval().to(device)
+    _SNAC_CACHE[device] = (torch, model)
+    return torch, model
+
+
+def decode_snac_codes(codes: list[int]) -> tuple[int, np.ndarray]:
     # Orpheus/SNAC uses groups of 7 tokens per frame.
     n = (len(codes) // 7) * 7
     codes = codes[:n]
     if n < 28:
         raise RuntimeError(f"Zu wenige Orpheus-Audiotokens: {len(codes)}")
 
-    # Limit very long generations defensively.
     max_codes = int(os.environ.get("ORPHEUS_MAX_CODES", "1400"))
     if len(codes) > max_codes:
         codes = codes[: (max_codes // 7) * 7]
 
-    device = os.environ.get("SNAC_DEVICE", "").strip()
-    if not device:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Fast/stable default: keep SNAC on CPU. Orpheus token server may use GPU.
+    device = os.environ.get("SNAC_DEVICE", "cpu").strip() or "cpu"
+    torch, model = _get_snac_model(device)
 
     c0: list[int] = []
     c1: list[int] = []
@@ -224,7 +237,6 @@ def decode_snac_codes(codes: list[int]) -> tuple[int, np.ndarray]:
         if torch.any(t < 0) or torch.any(t > 4095):
             raise RuntimeError("SNAC code außerhalb 0..4095")
 
-    model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval().to(device)
     with torch.inference_mode():
         audio_hat = model.decode(tensors)
 
@@ -295,7 +307,7 @@ def generate_orpheus_tokens_server(text: str) -> str:
         "special": True,
         "ignore_eos": True,
     }
-    r = requests.post(url, json=payload, timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "240")))
+    r = _HTTP.post(url, json=payload, timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "240")))
     if os.environ.get("ORPHEUS_VERBOSE", "0") == "1":
         print("orpheus-server HTTP:", r.status_code, flush=True)
         print(r.text[:1000], flush=True)
@@ -476,8 +488,8 @@ def transcribe(whisper, audio: np.ndarray) -> str:
     segments, _ = whisper.transcribe(
         audio,
         language="de",
-        beam_size=int(os.environ.get("WHISPER_BEAM_SIZE", "1")),
-        vad_filter=os.environ.get("WHISPER_VAD", "0") == "1",
+        beam_size=int(os.environ.get("WHISPER_BEAM_SIZE", "5")),
+        vad_filter=os.environ.get("WHISPER_VAD", "1") == "1",
     )
     return " ".join(seg.text.strip() for seg in segments).strip()
 
@@ -517,7 +529,7 @@ def reply_llama(text: str) -> str:
         "max_tokens": int(os.environ.get("LLAMA_MAX_TOKENS", "80")),
         "stream": False,
     }
-    r = requests.post(url, json=payload, timeout=int(os.environ.get("LLAMA_TIMEOUT", "120")))
+    r = _HTTP.post(url, json=payload, timeout=int(os.environ.get("LLAMA_TIMEOUT", "120")))
     r.raise_for_status()
     data = r.json()
     if os.environ.get("VOICE_DEBUG_LLM", "0") == "1":
@@ -565,6 +577,14 @@ def cmd_tts(args: argparse.Namespace) -> int:
 
 def cmd_loop(args: argparse.Namespace) -> int:
     whisper = load_whisper()
+
+    # Preload SNAC once for Orpheus modes so the first spoken answer is faster.
+    if args.tts in {"orpheus", "orpheus-server"}:
+        device = os.environ.get("SNAC_DEVICE", "cpu").strip() or "cpu"
+        t0 = time.perf_counter()
+        _get_snac_model(device)
+        print(f"SNAC bereit ({device}) nach {time.perf_counter() - t0:.2f}s", flush=True)
+
     print(f"Voice Loop bereit. Reply={args.reply}, TTS={args.tts}. Abbruch mit Ctrl+C.", flush=True)
 
     while True:

@@ -33,9 +33,6 @@ shift || true
 
 runtime_env() {
   export PYTHONPATH="$VOICE_DIR:$ROOT_DIR:${PYTHONPATH:-}"
-
-  # SNAC auf ROCm/gfx1031 ist aktuell instabil.
-  # Orpheus-Tokens dürfen über GPU/server laufen, aber SNAC-Decoding bleibt standardmäßig CPU.
   export SNAC_DEVICE="${SNAC_DEVICE:-cpu}"
   export PATH="$VENV_DIR/bin:${PATH:-}"
 
