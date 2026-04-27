@@ -1,5 +1,10 @@
 # Voice Chat (STT -> LLM -> TTS)
 
+> !important
+> Das ist ein alter Stand
+> muss überarbeitet werden.
+
+ 
 Dieses Setup baut eine lokale Sprachpipeline im Terminal:
 
 1. Aufnahme per Push-to-talk (`pw-record`)
@@ -26,7 +31,7 @@ pip install pyyaml
 ## Quickstart
 
 ```bash
-cd /media/christoph/some_space/Compute/Mogli-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
 ./voice/bin/audio_devices.sh
 # dann config anpassen
 $EDITOR voice/config.yaml
@@ -36,7 +41,7 @@ $EDITOR voice/config.yaml
 ## whisper.cpp einrichten (falls fehlt)
 
 ```bash
-cd /media/christoph/some_space/Compute/Mogli-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
 git clone https://github.com/ggml-org/whisper.cpp third_party/whisper.cpp
 cmake -S third_party/whisper.cpp -B third_party/whisper.cpp/build -G Ninja
 cmake --build third_party/whisper.cpp/build -j
@@ -56,7 +61,7 @@ Wichtig:
 - `audio.backend`: `pipewire` oder `alsa`
 - `audio.input_device` / `audio.output_device` optional setzen
 
-Beispiel mit bereits funktionierendem Mogli-Lab ALSA-Device:
+Beispiel mit bereits funktionierendem ML-Lab ALSA-Device:
 
 ```yaml
 audio:
