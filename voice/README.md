@@ -1,3 +1,20 @@
+#schnellstart:
+
+
+llm server: 
+
+PORT=8081 MODEL_ALIAS=voice-local CTX=8192 GPU_LAYERS=-1 ./start_voice_server.sh models/voice/Qwen2.5-7B-Instruct-Q4_K_M.gguf
+
+tts server: 
+
+PORT=8082 MODEL_ALIAS=orpheus-tts CTX=2048 GPU_LAYERS=-1 ./start_voice_server.sh "$MODEL"
+
+loop:
+
+LLAMA_API_URL=http://127.0.0.1:8081/v1/chat/completions LLAMA_MODEL=voice-local ORPHEUS_COMPLETION_URL=http://127.0.0.1:8082/completion SNAC_DEVICE=cpu WHISPER_MODEL=small WHISPER_COMPUTE_TYPE=int8 WHISPER_BEAM_SIZE=5 WHISPER_VAD=1 ./voice/run.sh loop --reply llama --tts orpheus-server
+
+
+
 # Voice-Pipeline
 
 Schlanke Struktur mit einem Einstiegspunkt:
