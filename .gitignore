@@ -46,3 +46,37 @@ voice/models/**
 !voice/models/
 !voice/models/README.md
 !voice/models/.gitkeep
+
+# voice local runtime
+voice/.venv/
+voice/.venv-llm/
+voice/.venv-piper/
+voice/models/
+voice/cache/
+voice/output/
+voice/tmp/
+voice/*.wav
+voice/*.onnx
+voice/*.onnx.json
+voice/*.log
+voice/*.bak*
+voice/__pycache__/
+voice/**/*.pyc
+
+# local downloaded models / generated artifacts
+*.gguf
+*.onnx
+*.onnx.json
+*.wav
+*.mp3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# logs / temp
+*.log
+*.tmp
+*.bak*
