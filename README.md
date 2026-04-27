@@ -10,15 +10,23 @@ Dieses Repo bündelt drei lokale Workflows:
    chat.sh -> llama.cpp / llama-cli
 
 3. Voice auf der Workstation:
-   Mic -> faster-whisper -> Reply Provider -> Piper -> Speaker
+   Mic -> faster-whisper -> Reply-LLM -> Orpheus-TTS -> Speaker
 ```
 
-Standard für Voice ist jetzt **Piper**.  
-Der frühere `./chat.sh --mode speech`-Pfad ist nicht mehr der Standard und wird nicht weiter verwendet.
+Der aktuelle Voice-Zielpfad ist:
+
+```text
+Whisper = hören
+Qwen2.5 = antworten
+Orpheus = sprechen
+Piper = Fallback-TTS
+```
+
+Der frühere `./chat.sh --mode speech`-Pfad ist nicht mehr der Standard.
 
 ---
 
-## Standard-Workflow: OpenCode
+## 1. Standard-Workflow: OpenCode
 
 Terminal A:
 
@@ -46,7 +54,7 @@ Kontext:     über start_llama_server.sh konfiguriert
 
 ---
 
-## Textchat im Terminal
+## 2. Textchat im Terminal
 
 ```bash
 cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
@@ -75,150 +83,347 @@ und setzt die nötige ROCm-Laufzeitumgebung script-intern.
 
 ---
 
-## Voice: Piper als Standard
+# Voice Quickstart
 
-Piper ist der robuste Standardpfad für lokale Sprachausgabe:
-
-```text
-Text -> Piper -> WAV/Audio -> Speaker
-```
-
-Der Voice-Loop läuft so:
+## Zielarchitektur
 
 ```text
 Mikrofon
 -> faster-whisper
--> Reply Provider
-   -> echo
-   -> static
-   -> llama-server
--> Piper
+-> Qwen2.5-7B-Instruct non-thinking
+-> Orpheus-DE TTS-Server
+-> SNAC Decoder auf CPU
 -> Lautsprecher
 ```
 
-### Setup
+Dazu laufen zwei persistente `llama-server`-Instanzen:
+
+```text
+Port 8081:
+  Reply-LLM
+  Qwen2.5-7B-Instruct-Q4_K_M.gguf
+  Aufgabe: Textantwort erzeugen
+
+Port 8082:
+  Orpheus-DE TTS
+  3b-de-ft-research_release-q4_k_m.gguf
+  Aufgabe: <custom_token_...> Audio-Tokens erzeugen
+```
+
+Der Voice-Loop verbindet beide Server:
+
+```text
+STT -> 8081 /v1/chat/completions -> 8082 /completion -> SNAC CPU -> Speaker
+```
+
+---
+
+## 3. Voice Setup
+
+Einmalig:
 
 ```bash
 cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
-./voice/setup_piper_env.sh
-./voice/download_piper_de.sh
+
+./voice/run.sh setup
+./voice/run.sh download-piper
+
+./voice/run.sh setup-orpheus
+./voice/run.sh download-orpheus
 ```
 
-### TTS testen
+Falls das Qwen2.5-Voice-Modell noch fehlt:
 
 ```bash
-./voice/run_tts.sh "Die Haustür ist noch offen."
+mkdir -p models/voice
+
+./voice/.venv/bin/python3 - <<'PY'
+from huggingface_hub import hf_hub_download
+from pathlib import Path
+import shutil
+
+repo = "bartowski/Qwen2.5-7B-Instruct-GGUF"
+filename = "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+target = Path("models/voice") / filename
+
+path = hf_hub_download(repo_id=repo, filename=filename)
+target.parent.mkdir(parents=True, exist_ok=True)
+
+if not target.exists():
+    shutil.copy2(path, target)
+
+print(target.resolve())
+print(f"{target.stat().st_size / 1024**3:.2f} GiB")
+PY
 ```
 
-Direkt über Piper-Wrapper:
+Prüfen:
 
 ```bash
-./voice/run_tts_piper.sh "Die Haustür ist noch offen."
-```
-
-### Voice-Loop: Echo-Test
-
-```bash
-WHISPER_MODEL=tiny ./voice/run_voice_loop.sh --reply echo
-```
-
-### Voice-Loop: feste Antwort
-
-```bash
-./voice/run_voice_loop.sh --reply static
-```
-
-### Voice-Loop mit lokalem llama-server
-
-Terminal A:
-
-```bash
-./start_llama_server.sh
-```
-
-Terminal B:
-
-```bash
-WHISPER_MODEL=tiny ./voice/run_voice_loop.sh --reply llama
+ls -lh models/voice/Qwen2.5-7B-Instruct-Q4_K_M.gguf
+./voice/run.sh orpheus-path
 ```
 
 ---
 
-## Orpheus: experimenteller Pfad
+## 4. Voice Quickstart mit drei Terminals
 
-Orpheus bleibt im Repo als Experiment, ist aber **nicht** der Standard.
-
-Aktueller Befund:
-
-```text
-Orpheus-DE 3B:
-  CPU: zu langsam für flüssige Workstation-Voice
-  ROCm/gfx1031: instabil; Crash bereits bei erstem GPU-Offload-Layer
-
-Piper:
-  stabiler Standard für lokalen Voice-Loop
-```
-
-Orpheus-TTS funktioniert technisch anders als Piper:
-
-```text
-Text
--> llama-completion erzeugt <custom_token_...>
--> SNAC decodiert Audio
--> Speaker
-```
-
-Der korrekte Raw-Completion-Aufruf braucht:
-
-```text
-llama-completion
---special
---ignore-eos
--no-cnv
---no-warmup
---flash-attn off
-```
-
-Experimenteller Test:
+### Terminal A: Reply-LLM starten
 
 ```bash
-ORPHEUS_GPU_LAYERS=0 \
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+
+PORT=8081 \
+MODEL_ALIAS=voice-local \
+CTX=8192 \
+GPU_LAYERS=-1 \
+./start_voice_server.sh models/voice/Qwen2.5-7B-Instruct-Q4_K_M.gguf
+```
+
+Erwartung:
+
+```text
+url:   http://127.0.0.1:8081/v1
+alias: voice-local
+```
+
+### Terminal B: Orpheus-TTS-Server starten
+
+```bash
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+
+MODEL="$(./voice/run.sh orpheus-path)"
+
+PORT=8082 \
+MODEL_ALIAS=orpheus-tts \
+CTX=2048 \
+GPU_LAYERS=-1 \
+./start_voice_server.sh "$MODEL"
+```
+
+Erwartung:
+
+```text
+url:   http://127.0.0.1:8082/v1
+alias: orpheus-tts
+```
+
+### Terminal C: Voice-Loop starten
+
+```bash
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+
+LLAMA_API_URL=http://127.0.0.1:8081/v1/chat/completions \
+LLAMA_MODEL=voice-local \
+ORPHEUS_COMPLETION_URL=http://127.0.0.1:8082/completion \
 SNAC_DEVICE=cpu \
-./voice/run_tts_orpheus.sh "Die Haustür ist noch offen."
+WHISPER_MODEL=small \
+WHISPER_COMPUTE_TYPE=int8 \
+WHISPER_BEAM_SIZE=5 \
+WHISPER_VAD=1 \
+LLAMA_MAX_TOKENS=80 \
+LLAMA_TEMP=0.7 \
+./voice/run.sh loop --reply llama --tts orpheus-server
 ```
-
-Hinweis: Orpheus ist derzeit kein produktiver Standardpfad für dieses Setup.
 
 ---
 
-## ROCm-Umgebung
+## 5. Einzeltests
 
-Voraussetzungen:
+### Reply-LLM testen
+
+```bash
+curl -s http://127.0.0.1:8081/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "voice-local",
+    "messages": [
+      {
+        "role": "system",
+        "content": "Antworte kurz auf Deutsch, leicht trocken, mit gelegentlichem Kaffee-Humor."
+      },
+      {
+        "role": "user",
+        "content": "Die Haustür ist noch offen."
+      }
+    ],
+    "max_tokens": 80,
+    "temperature": 0.7,
+    "stream": false
+  }' | python3 -m json.tool
+```
+
+Gut ist:
+
+```json
+"content": "Dann mach sie lieber zu, bevor der Kaffee kalt wird."
+```
+
+Schlecht ist:
+
+```json
+"content": "",
+"reasoning_content": "Thinking Process: ..."
+```
+
+Wenn `reasoning_content` auftaucht, läuft noch ein Thinking-Modell. Für Voice soll ein non-thinking Modell verwendet werden.
+
+### Orpheus-TTS-Server testen
+
+```bash
+ORPHEUS_COMPLETION_URL=http://127.0.0.1:8082/completion \
+SNAC_DEVICE=cpu \
+./voice/run.sh tts --tts orpheus-server "Die Haustür ist noch offen."
+```
+
+Erwartung:
 
 ```text
-ROCm liegt unter /opt/rocm
-llama.cpp ist mit ROCm/HIP gebaut
-GPU ist über ROCm sichtbar
+Orpheus tokens: ...
+Orpheus-Server: ...s Audio, sr=24000, synth=...s
 ```
 
-Schnelltest:
+### Piper-Fallback testen
 
 ```bash
-rocminfo | sed -n '1,120p'
+./voice/run.sh tts --tts piper "Die Haustür ist noch offen."
 ```
 
-Bei RX 6700 XT / gfx1031 wird in den Scripts typischerweise gesetzt:
+### STT ohne LLM testen
 
 ```bash
-HSA_OVERRIDE_GFX_VERSION=10.3.0
-HIP_PLATFORM=amd
+WHISPER_MODEL=small \
+WHISPER_COMPUTE_TYPE=int8 \
+WHISPER_BEAM_SIZE=5 \
+WHISPER_VAD=1 \
+./voice/run.sh loop --reply echo --tts piper
 ```
 
-Die Startscripts setzen ihre Runtime selbst. Für normale Nutzung ist kein manuelles `source` nötig.
+Dieser Test prüft nur:
+
+```text
+Mikrofon -> Whisper -> erkannter Text -> Piper
+```
 
 ---
 
-## Wichtige Dateien
+## 6. Performance-orientierter Betrieb
+
+Aktueller performanter Standard:
+
+```text
+STT:
+  faster-whisper small
+  CPU int8
+  beam_size=5
+  VAD an
+
+Reply:
+  Qwen2.5-7B-Instruct
+  non-thinking
+  llama-server auf Port 8081
+  max_tokens=80
+
+TTS:
+  Orpheus-DE GGUF
+  llama-server auf Port 8082
+  /completion
+  liefert <custom_token_...>
+
+Decoder:
+  SNAC
+  CPU
+  wird im Loop warm gehalten
+
+Fallback:
+  Piper
+```
+
+Nicht empfohlen für den produktiven Voice-Loop:
+
+```text
+- Thinking-Qwen als Reply-LLM
+- Orpheus pro Satz per lokalem llama-completion neu starten
+- SNAC auf ROCm/gfx1031
+- Whisper tiny für deutsche Alltagssprache
+```
+
+---
+
+## 7. Orpheus: technische Einordnung
+
+Orpheus ist in diesem Setup **nicht STT** und nicht das normale Antwortmodell.
+
+Orpheus übernimmt nur:
+
+```text
+Antworttext
+-> Orpheus-DE
+-> <custom_token_...>
+-> SNAC
+-> Audio
+```
+
+STT bleibt:
+
+```text
+Mikrofon-Audio -> faster-whisper -> Text
+```
+
+Antwortlogik bleibt:
+
+```text
+Text -> Qwen2.5 non-thinking -> Antworttext
+```
+
+Warum Orpheus als Server?
+
+```text
+- Das Modell bleibt geladen.
+- /completion liefert schnell custom tokens.
+- Der Loop muss das Orpheus-Modell nicht pro Satz neu laden.
+- SNAC wird lokal auf CPU decodiert.
+```
+
+---
+
+## 8. Verhältnis zu talk-llama.cpp / orpheus-speak Setups
+
+Die Zielarchitektur entspricht grundsätzlich diesen lokalen Voice-Systemen:
+
+```text
+Whisper-small
+-> Qwen GGUF
+-> Orpheus GGUF
+-> SNAC Decoder
+-> Audio
+```
+
+Unterschied:
+
+```text
+Dieses Repo:
+  Python-Loop
+  faster-whisper
+  llama-server für Reply
+  llama-server für Orpheus
+  SNAC CPU in Python
+
+Optimierte C++-Setups:
+  talk-llama.cpp
+  whisper.cpp GGUF
+  llama.cpp direkt integriert
+  orpheus-speak C++ Decoder
+  SNAC ONNX Runtime
+  Audio direkt aus RAM
+```
+
+Unser Stand ist modularer und leichter zu debuggen.  
+Der nächste Performance-Schritt wäre ein separater schneller SNAC-Decoder auf ONNX/C++-Basis.
+
+---
+
+## 9. Wichtige Dateien
 
 ```text
 chat.sh
@@ -227,165 +432,163 @@ chat.sh
 start_llama_server.sh
   OpenAI-kompatibler llama-server für OpenCode.
 
-run_opencode_local.sh
-  Startet llama-server und danach OpenCode.
+start_voice_server.sh
+  Generischer llama-server-Starter für Voice-Modelle.
+  Wird für Reply-LLM und Orpheus-TTS verwendet.
 
-download_qwen36_27b.sh
-  Lädt ein Qwen3.6-27B-GGUF nach models/.
+voice/run.sh
+  Einziger Einstiegspunkt für Voice:
+  setup, download-piper, download-orpheus, tts, loop, orpheus-path.
 
-voice/setup_piper_env.sh
-  Richtet die Python-venv für Piper, Whisper und Audio ein.
+voice/voice_app.py
+  Enthält:
+  - Aufnahme
+  - STT
+  - Reply-Client
+  - Piper-TTS
+  - Orpheus-Server-TTS
+  - SNAC-Decoding
+  - Voice-Loop
 
-voice/download_piper_de.sh
-  Lädt das deutsche Piper-Modell.
+voice/requirements.txt
+  Python-Abhängigkeiten für Voice.
 
-voice/run_tts.sh
-  Standard-TTS. Zeigt auf Piper.
-
-voice/run_voice_loop.sh
-  Standard-Voice-Loop. Zeigt auf Piper.
-
-voice/run_tts_piper.sh
-  Piper-TTS direkt.
-
-voice/run_voice_loop_piper.sh
-  Voice-Loop mit Piper.
-
-voice/run_tts_orpheus.sh
-  Experimenteller Orpheus-TTS-Pfad.
-
-voice/python_rocm.sh
-  Debug-Helfer für Python mit ROCm-Env.
+voice/README.md
+  Voice-spezifische Kurzbeschreibung.
 ```
 
 ---
 
-## Modelle
+## 10. Wichtige Umgebungsvariablen
 
-### llama.cpp / Text
-
-Bevorzugte Modelle unter `models/`:
+### Reply-LLM
 
 ```text
-models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf
-models/Qwen3.6-27B-Q4_K_M.gguf
-models/Qwen3.5-9B-Q4_K_M.gguf
+LLAMA_API_URL=http://127.0.0.1:8081/v1/chat/completions
+LLAMA_MODEL=voice-local
+LLAMA_MAX_TOKENS=80
+LLAMA_TEMP=0.7
+```
+
+### Orpheus-TTS
+
+```text
+ORPHEUS_COMPLETION_URL=http://127.0.0.1:8082/completion
+SNAC_DEVICE=cpu
+```
+
+### Whisper
+
+```text
+WHISPER_MODEL=small
+WHISPER_COMPUTE_TYPE=int8
+WHISPER_BEAM_SIZE=5
+WHISPER_VAD=1
 ```
 
 ### Piper
 
-Piper-Modelle liegen lokal unter:
+```text
+PIPER_VOICE=de_DE-thorsten-medium
+PIPER_MODEL=/pfad/model.onnx
+PIPER_CONFIG=/pfad/model.onnx.json
+```
+
+### Serverstart
 
 ```text
-voice/models/
-```
+PORT=8081
+MODEL_ALIAS=voice-local
+CTX=8192
+GPU_LAYERS=-1
 
-Diese Dateien werden nicht versioniert.
-
-### Orpheus
-
-Orpheus-GGUF wird aus dem Hugging-Face-Cache oder über `ORPHEUS_MODEL_PATH` genutzt.
-
-```bash
-ORPHEUS_MODEL_PATH=/pfad/zum/orpheus.gguf ./voice/run_tts_orpheus.sh "Text"
-```
-
----
-
-## Performance-Parameter
-
-### Textchat
-
-```bash
-LLAMA_N_PREDICT=120 ./chat.sh
-LLAMA_GPU_LAYERS=32 LLAMA_CTX_SIZE=1536 ./chat.sh
-```
-
-### Voice / Whisper
-
-```bash
-WHISPER_MODEL=tiny ./voice/run_voice_loop.sh --reply echo
-WHISPER_MODEL=base ./voice/run_voice_loop.sh --reply echo
-```
-
-### Piper
-
-```bash
-PIPER_VOICE=de_DE-thorsten-medium ./voice/run_tts.sh "Text"
-```
-
-### Orpheus experimentell
-
-```bash
-ORPHEUS_GPU_LAYERS=0 SNAC_DEVICE=cpu ./voice/run_tts_orpheus.sh "Text"
+PORT=8082
+MODEL_ALIAS=orpheus-tts
+CTX=2048
+GPU_LAYERS=-1
 ```
 
 ---
 
-## Troubleshooting
+## 11. Troubleshooting
 
-### `chat.sh --mode speech` funktioniert nicht
+### Voice-Loop startet, aber antwortet nicht
 
-Der alte Speech-Modus über `chat.sh` wird nicht mehr verwendet.
-
-Nutze stattdessen:
+Erst Server prüfen:
 
 ```bash
-./voice/run_tts.sh "Die Haustür ist noch offen."
-WHISPER_MODEL=tiny ./voice/run_voice_loop.sh --reply echo
+curl -s http://127.0.0.1:8081/v1/models | python3 -m json.tool
+curl -s http://127.0.0.1:8082/v1/models | python3 -m json.tool
+```
+
+Dann Einzeltests aus Abschnitt 5 ausführen.
+
+### LLM-Antwort ist leer
+
+Prüfen, ob ein Thinking-Modell läuft:
+
+```bash
+cat /tmp/voice_last_llm_response.json | python3 -m json.tool | grep -E '"content"|"reasoning_content"|"finish_reason"' -n
+```
+
+Wenn `reasoning_content` erscheint, anderes non-thinking Modell verwenden.
+
+### STT ist schlecht
+
+Erst Echo-Test:
+
+```bash
+WHISPER_MODEL=small \
+WHISPER_COMPUTE_TYPE=int8 \
+WHISPER_BEAM_SIZE=5 \
+WHISPER_VAD=1 \
+./voice/run.sh loop --reply echo --tts piper
+```
+
+Wenn nötig:
+
+```bash
+WHISPER_MODEL=medium \
+WHISPER_COMPUTE_TYPE=int8 \
+WHISPER_BEAM_SIZE=5 \
+WHISPER_VAD=1 \
+./voice/run.sh loop --reply echo --tts piper
+```
+
+### Orpheus-TTS crasht lokal
+
+Nicht den lokalen `llama-completion`-Pfad verwenden.  
+Der stabile Pfad ist:
+
+```text
+Orpheus als llama-server auf Port 8082
+-> /completion
+-> SNAC_DEVICE=cpu
+```
+
+### SNAC crasht
+
+Immer CPU erzwingen:
+
+```bash
+SNAC_DEVICE=cpu ./voice/run.sh tts --tts orpheus-server "Text"
 ```
 
 ### Piper-Modell fehlt
 
 ```bash
-./voice/download_piper_de.sh
+./voice/run.sh download-piper
 ```
 
 ### Voice-venv fehlt
 
 ```bash
-./voice/setup_piper_env.sh
-```
-
-### Mikrofon / Lautsprecher prüfen
-
-```bash
-./voice/python_rocm.sh - <<'PY'
-import sounddevice as sd
-print(sd.query_devices())
-print("default:", sd.default.device)
-PY
-```
-
-### llama-server-Modell fehlt
-
-Wenn `start_llama_server.sh` über ein fehlendes Modell klagt, prüfe:
-
-```bash
-ls -lah models/
-```
-
-oder starte mit explizitem Modell:
-
-```bash
-./start_llama_server.sh /pfad/zum/model.gguf
-```
-
-### GPU wird nicht genutzt
-
-```bash
-rocminfo | sed -n '1,120p'
-```
-
-Bei VRAM-Problemen:
-
-```bash
-LLAMA_GPU_LAYERS=32 LLAMA_CTX_SIZE=1536 ./chat.sh
+./voice/run.sh setup
 ```
 
 ---
 
-## Git-Hinweis
+## 12. Git-Hinweis
 
 Committen:
 
@@ -443,20 +646,58 @@ venv/
 
 ---
 
-## Empfehlung
+# TODOs
 
-```text
-Coding:
-  ./start_llama_server.sh
-  opencode .
+## Kurzfristig
 
-Textchat:
-  ./chat.sh
+- [ ] `start_voice_stack.sh` hinzufügen, damit Reply-LLM, Orpheus-TTS und Voice-Loop mit einem Befehl gestartet werden können.
+- [ ] Prüfen, ob `./voice/run.sh loop --reply llama --tts orpheus-server` im aktuellen Stand stabil durchläuft.
+- [ ] STT-Parameter final einstellen:
+  - `WHISPER_MODEL=small` vs. `medium`
+  - `WHISPER_BEAM_SIZE=5`
+  - `WHISPER_VAD=1`
+  - Aufnahme-Schwellenwerte für Start/Stop.
+- [ ] Systemprompt für den Voice-Reply-Server A/B-testen:
+  - kurz
+  - deutsch
+  - kein Markdown
+  - leichter Kaffee-Humor, aber nicht übertrieben.
+- [ ] README-Quickstart mit real getesteten Befehlen abgleichen.
 
-Voice:
-  ./voice/run_tts.sh "Text"
-  WHISPER_MODEL=tiny ./voice/run_voice_loop.sh --reply echo
+## Mittelfristig
 
-Orpheus:
-  nur experimentell
-```
+- [ ] Piper als automatischen Fallback behalten, falls Orpheus-TTS nicht erreichbar ist.
+- [ ] Healthcheck im Loop ergänzen:
+  - Port 8081 erreichbar?
+  - Port 8082 erreichbar?
+  - SNAC initialisiert?
+- [ ] Latenz je Schritt messen und ausgeben:
+  - STT-Zeit
+  - Reply-Zeit
+  - Orpheus-Token-Zeit
+  - SNAC-Decoding-Zeit
+  - Audio-Länge
+  - Real-Time-Factor.
+- [ ] Orpheus-TTS in 2- bis 3-Satz-Chunks unterstützen, damit längere Antworten früher abgespielt werden.
+- [ ] Audio-Ausgabe entkoppeln:
+  - TTS kann schon weiter decodieren, während Audio abgespielt wird.
+- [ ] Konfiguration in eine `.env` oder `voice/config.env` auslagern.
+
+## Performance / Forschung
+
+- [ ] Python-SNAC durch ONNX Runtime Decoder ersetzen.
+- [ ] Community-Decoder `snac24_dynamic_fp16` prüfen.
+- [ ] Kleines `orpheus-speak`-Tool als C++/ONNX-Prozess evaluieren.
+- [ ] SNAC-Decoder dauerhaft warm halten und Audio direkt aus RAM ausgeben.
+- [ ] Prüfen, ob `whisper.cpp` / `talk-llama.cpp` für STT schneller oder stabiler als `faster-whisper` ist.
+- [ ] `Whisper-small GGUF` mit `talk-llama.cpp` als Alternative testen.
+- [ ] Gemeinsames Launcher-Script für alle Neural-Net-Komponenten bauen:
+  - LLM
+  - STT
+  - TTS
+  - Decoder.
+- [ ] ROCm-Verhalten von Orpheus lokal weiter untersuchen:
+  - warum lokaler `llama-completion`-Pfad instabil war
+  - warum Serverpfad funktioniert
+  - welche Flags relevant sind.
+- [ ] Prüfen, ob SNAC auf ROCm später stabil möglich ist; aktuell Default bleibt CPU.
