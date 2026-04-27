@@ -1,90 +1,52 @@
-# Voice Chat (STT -> LLM -> TTS)
+# Voice Chat (Fast Path: STT -> LLM -> TTS)
 
-> !important
-> Das ist ein alter Stand
-> muss überarbeitet werden.
+Die Voice-Pipeline ist auf Performance optimiert:
 
- 
-Dieses Setup baut eine lokale Sprachpipeline im Terminal:
-
-1. Aufnahme per Push-to-talk (`pw-record`)
-2. STT mit `whisper.cpp`
-3. Antwort mit `llama.cpp` (`llama-cli`, **kein Ollama**)
-4. TTS mit `piper`
-5. Ausgabe per `pw-play`
+1. Aufnahme (Push-to-talk)
+2. STT ueber persistenten `whisper-server`
+3. Antwort ueber persistenten `llama-server`
+4. TTS ueber persistenten `orpheus`-Server (Voice `tara`)
+5. Playback in-memory ueber `pw-play`/`aplay`
 
 ## Dependencies
 
-- `pipewire-utils` (liefert `pw-record`, `pw-play`)
-- `ffmpeg`
-- `whisper.cpp` (`whisper-cli`)
-- `piper`
+- `pipewire-utils` (`pw-record`, `pw-play`) oder ALSA (`arecord`, `aplay`)
 - `python3`
 - `pyyaml`
+- laufender `whisper-server`
+- laufender `llama-server`
+- laufender `orpheus`-TTS-Server (OpenAI-kompatibel)
 
-Install-Hinweis fuer PyYAML:
-
-```bash
-pip install pyyaml
-```
-
-## Quickstart
+## Start
 
 ```bash
 cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+
+# LLM-Server
+./start_llama_server.sh
+
+# Whisper- und Orpheus-Server separat starten
+# (abhängig von deiner lokalen Installation)
+
+# Audio-Devices checken, Config anpassen, Voice-Loop starten
 ./voice/bin/audio_devices.sh
-# dann config anpassen
 $EDITOR voice/config.yaml
 ./voice/bin/voice_chat.sh
-```
-
-## whisper.cpp einrichten (falls fehlt)
-
-```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
-git clone https://github.com/ggml-org/whisper.cpp third_party/whisper.cpp
-cmake -S third_party/whisper.cpp -B third_party/whisper.cpp/build -G Ninja
-cmake --build third_party/whisper.cpp/build -j
-mkdir -p third_party/whisper.cpp/models
-cd third_party/whisper.cpp/models
-wget -c https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
 ```
 
 ## Konfiguration
 
 Datei: `voice/config.yaml`
 
-Wichtig:
-- `stt.whispercpp_bin` und `stt.model_path` muessen stimmen
-- `llm.bin` kann auf ein vorhandenes `llama-cli` zeigen
-- `tts.piper_bin` und `tts.model_path` muessen stimmen
-- `audio.backend`: `pipewire` oder `alsa`
-- `audio.input_device` / `audio.output_device` optional setzen
+Wichtige Felder:
 
-Beispiel mit bereits funktionierendem ML-Lab ALSA-Device:
+- `audio.backend: pipewire|alsa`
+- `audio.input_device`, `audio.output_device`
+- `stt.server_url`
+- `llm.base_url`, `llm.model_alias`
+- `tts.base_url`, `tts.model`, `tts.voice` (Standard: `tara`)
 
-```yaml
-audio:
-  backend: "alsa"
-  input_device: "hw:1,0"
-  output_device: "hw:1,0"
-  sample_rate: 16000
-  channels: 1
-  max_record_seconds: 12
-```
+## Runtime
 
-Bei `pipewire` koennen `input_device`/`output_device` als Node-Name oder Serial
-fuer `--target` gesetzt werden. Leer bedeutet automatische Auswahl.
-
-## Dateien & Runtime
-
-- Input Audio: `voice/runtime/in.wav`
-- Resampled Audio: `voice/runtime/in_16k.wav`
-- STT Text: `voice/runtime/in.txt`
-- LLM Antwort: `voice/runtime/out.txt`
-- TTS Audio: `voice/runtime/out.wav`
+- Hot Path arbeitet ohne verpflichtende Audio/Text-Dateihops.
 - Log: `voice/runtime/voice.log`
-
-## Hinweis zu Datei-Zugriffen des LLM
-
-Das LLM kann **nicht** selbststaendig Dateien lesen/schreiben. Es bekommt nur den Text, den diese Pipeline explizit uebergibt.
