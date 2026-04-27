@@ -30,16 +30,10 @@ models/**/*.pt
 models/**/*.pth
 models/**/*.onnx
 
-# Local experiments / cloned helper repos
-kiv/
-
-# Local Ollama data and binaries (keep docs only)
-ollama-models/**
-!ollama-models/
-!ollama-models/README.md
-ollama-local/**
-!ollama-local/
-!ollama-local/README.md
+# Deprecated / old pipelines
+deprecated/**
+!deprecated/
+!deprecated/**/README.md
 
 # Voice runtime outputs (keep folder structure only)
 voice/runtime/**
