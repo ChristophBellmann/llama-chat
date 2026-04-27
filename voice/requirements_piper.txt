@@ -1,0 +1,6 @@
+numpy<2
+sounddevice
+faster-whisper
+requests
+huggingface_hub
+piper-tts
