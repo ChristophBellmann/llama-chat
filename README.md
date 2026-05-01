@@ -24,6 +24,12 @@ Piper = Fallback-TTS
 
 Der frühere `./chat.sh --mode speech`-Pfad ist nicht mehr der Standard.
 
+Runtime-Caches bleiben repo-lokal unter `.cache/`:
+
+- Hugging Face Hub/Xet/Transformers: `.cache/huggingface/`
+- XDG-Cache-Fallbacks: `.cache/xdg/`
+- llama.cpp Cache: `.cache/llama.cpp/`
+
 ---
 
 ## 1. Standard-Workflow: OpenCode
@@ -135,6 +141,7 @@ cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
 Falls das Qwen2.5-Voice-Modell noch fehlt:
 
 ```bash
+source ./env.local.sh
 mkdir -p models/voice
 
 ./voice/.venv/bin/python3 - <<'PY'
@@ -162,6 +169,23 @@ Prüfen:
 ```bash
 ls -lh models/voice/Qwen2.5-7B-Instruct-Q4_K_M.gguf
 ./voice/run.sh orpheus-path
+```
+
+---
+
+## 3.5 Voice-Stack mit Loxa (ein Befehl)
+
+Reply-LLM auf Loxa umstellen und kompletten Stack starten:
+
+```bash
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+REPLY_MODEL=./models/Loxa-3B-Q4_K_M.gguf ./start_voice_stack.sh
+```
+
+Optional kompakter fuer 3B:
+
+```bash
+REPLY_MODEL=./models/Loxa-3B-Q4_K_M.gguf REPLY_CTX=4096 LLAMA_MAX_TOKENS=64 ./start_voice_stack.sh
 ```
 
 ---
@@ -650,7 +674,7 @@ venv/
 
 ## Kurzfristig
 
-- [ ] `start_voice_stack.sh` hinzufügen, damit Reply-LLM, Orpheus-TTS und Voice-Loop mit einem Befehl gestartet werden können.
+- [x] `start_voice_stack.sh` hinzufügen, damit Reply-LLM, Orpheus-TTS und Voice-Loop mit einem Befehl gestartet werden können.
 - [ ] Prüfen, ob `./voice/run.sh loop --reply llama --tts orpheus-server` im aktuellen Stand stabil durchläuft.
 - [ ] STT-Parameter final einstellen:
   - `WHISPER_MODEL=small` vs. `medium`
