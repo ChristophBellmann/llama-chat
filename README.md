@@ -89,6 +89,24 @@ und setzt die nötige ROCm-Laufzeitumgebung script-intern.
 
 ---
 
+## 2.5 HF-Tokenizer-Update (Wrapper)
+
+Fuer `llama.cpp/convert_hf_to_gguf_update.py` gibt es einen Repo-Wrapper, der
+automatisch den Token aus `HF_HOME/token` verwendet:
+
+```bash
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+./run_convert_hf_update.sh --check-missing
+```
+
+Falls du explizit einen anderen Token uebergeben willst:
+
+```bash
+./run_convert_hf_update.sh hf_xxx --check-missing
+```
+
+---
+
 # Voice Quickstart
 
 ## Zielarchitektur
