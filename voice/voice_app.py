@@ -147,7 +147,7 @@ def find_orpheus_model() -> str:
     if explicit:
         return explicit
 
-    base = Path.home() / ".cache/huggingface/hub"
+    base = Path(os.environ.get("HF_HUB_CACHE", ROOT_DIR / ".cache" / "huggingface" / "hub"))
     matches = sorted(
         base.glob(
             "models--freddyaboulton--3b-de-ft-research_release-Q4_K_M-GGUF"
@@ -377,7 +377,9 @@ def cmd_download_orpheus(args: argparse.Namespace) -> int:
 
     repo = "freddyaboulton/3b-de-ft-research_release-Q4_K_M-GGUF"
     filename = "3b-de-ft-research_release-q4_k_m.gguf"
-    path = hf_hub_download(repo_id=repo, filename=filename)
+    model_dir = VOICE_DIR / "models" / "orpheus"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    path = hf_hub_download(repo_id=repo, filename=filename, local_dir=model_dir)
     print(path)
     return 0
 

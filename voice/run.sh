@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/env.local.sh"
 VOICE_DIR="$ROOT_DIR/voice"
 VENV_DIR="${VENV_DIR:-$VOICE_DIR/.venv}"
 PY="$VENV_DIR/bin/python3"

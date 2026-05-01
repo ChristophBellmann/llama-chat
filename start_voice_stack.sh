@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$ROOT_DIR/env.local.sh"
 cd "$ROOT_DIR"
 
 REPLY_MODEL="${REPLY_MODEL:-$ROOT_DIR/models/voice/Qwen2.5-7B-Instruct-Q4_K_M.gguf}"

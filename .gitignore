@@ -18,6 +18,7 @@ Thumbs.db
 # Logs / runtime
 *.log
 *.pid
+.cache/
 
 # Local model artifacts (keep folder structure via README/.gitkeep)
 models/*

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$ROOT_DIR/env.local.sh"
 LLAMA_DIR="$ROOT_DIR/llama.cpp"
 LLAMA_BIN="$LLAMA_DIR/build/bin/llama-cli"
 

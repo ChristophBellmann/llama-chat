@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$ROOT_DIR/env.local.sh"
 BIN_DIR="$ROOT_DIR/llama.cpp/build/bin"
 PROFILES_DIR="$ROOT_DIR/profiles"
 PROFILE="${1:-stable}"

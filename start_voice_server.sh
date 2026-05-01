@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$ROOT_DIR/env.local.sh"
 BIN_DIR="$ROOT_DIR/llama.cpp/build/bin"
 
 MODEL_PATH="${1:-$ROOT_DIR/models/voice/Qwen2.5-7B-Instruct-Q4_K_M.gguf}"
