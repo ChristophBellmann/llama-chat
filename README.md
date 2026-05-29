@@ -53,7 +53,7 @@ Default:
 ```text
 Server:      llama-server
 API:         http://127.0.0.1:8080/v1
-Model alias: qwen-local
+Model alias: locales_llm
 Modell:      models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf
 Kontext:     über start_llama_server.sh konfiguriert
 ```

@@ -7,6 +7,7 @@ LLAMA_DIR="$ROOT_DIR/llama.cpp"
 LLAMA_BIN="$LLAMA_DIR/build/bin/llama-cli"
 
 DEFAULT_MODEL_CANDIDATES=(
+  "$ROOT_DIR/models/qwen35-4b-same-gguf-fast-Q4_K_M.gguf"
   "$ROOT_DIR/models/Qwen3-14B-Q4_K_M.gguf"
   "$ROOT_DIR/models/Qwen3.6-27B-Q4_K_M.gguf"
   "$ROOT_DIR/models/Qwen3.6-27B-Instruct-Q4_K_M.gguf"
@@ -92,8 +93,8 @@ fi
 
 if [[ ! -f "$MODEL_PATH" ]]; then
   echo "Fehler: Modell nicht gefunden: $MODEL_PATH" >&2
-  echo "Lege z. B. ein Qwen3.6-27B-GGUF unter models/ ab oder gib einen Pfad an:" >&2
-  echo "  ./chat.sh /pfad/zu/Qwen3.6-27B-*.gguf" >&2
+  echo "Lege z. B. ein Modell unter models/ ab oder gib einen Pfad an:" >&2
+  echo "  ./chat.sh /pfad/zu/deinem-modell.gguf" >&2
   exit 1
 fi
 

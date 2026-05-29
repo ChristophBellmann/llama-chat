@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$ROOT_DIR/env.local.sh"
 BIN_DIR="$ROOT_DIR/llama.cpp/build/bin"
-MODEL_PATH="${1:-$ROOT_DIR/models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf}"
-MODEL_ALIAS="${MODEL_ALIAS:-qwen-local}"
+MODEL_PATH="$ROOT_DIR/models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf"
+MODEL_ALIAS="${MODEL_ALIAS:-locales_llm}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8080}"
 CTX="${CTX:-32768}"
@@ -20,6 +20,98 @@ YARN_EXT_FACTOR="${YARN_EXT_FACTOR:--1.0}"
 YARN_ATTN_FACTOR="${YARN_ATTN_FACTOR:--1.0}"
 YARN_BETA_SLOW="${YARN_BETA_SLOW:--1.0}"
 YARN_BETA_FAST="${YARN_BETA_FAST:--1.0}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host)
+      [[ $# -ge 2 ]] || { echo "Fehler: --host erwartet einen Wert" >&2; exit 1; }
+      HOST="$2"
+      shift 2
+      ;;
+    --port)
+      [[ $# -ge 2 ]] || { echo "Fehler: --port erwartet einen Wert" >&2; exit 1; }
+      PORT="$2"
+      shift 2
+      ;;
+    --alias)
+      [[ $# -ge 2 ]] || { echo "Fehler: --alias erwartet einen Wert" >&2; exit 1; }
+      MODEL_ALIAS="$2"
+      shift 2
+      ;;
+    --ctx)
+      [[ $# -ge 2 ]] || { echo "Fehler: --ctx erwartet einen Wert" >&2; exit 1; }
+      CTX="$2"
+      shift 2
+      ;;
+    --ngl)
+      [[ $# -ge 2 ]] || { echo "Fehler: --ngl erwartet einen Wert" >&2; exit 1; }
+      GPU_LAYERS="$2"
+      shift 2
+      ;;
+    --ctk)
+      [[ $# -ge 2 ]] || { echo "Fehler: --ctk erwartet einen Wert" >&2; exit 1; }
+      CACHE_TYPE_K="$2"
+      shift 2
+      ;;
+    --ctv)
+      [[ $# -ge 2 ]] || { echo "Fehler: --ctv erwartet einen Wert" >&2; exit 1; }
+      CACHE_TYPE_V="$2"
+      shift 2
+      ;;
+    --long-context)
+      [[ $# -ge 2 ]] || { echo "Fehler: --long-context erwartet 0 oder 1" >&2; exit 1; }
+      LONG_CONTEXT="$2"
+      shift 2
+      ;;
+    --rope-scaling)
+      [[ $# -ge 2 ]] || { echo "Fehler: --rope-scaling erwartet einen Wert" >&2; exit 1; }
+      ROPE_SCALING="$2"
+      shift 2
+      ;;
+    --rope-scale)
+      [[ $# -ge 2 ]] || { echo "Fehler: --rope-scale erwartet einen Wert" >&2; exit 1; }
+      ROPE_SCALE="$2"
+      shift 2
+      ;;
+    --yarn-orig-ctx)
+      [[ $# -ge 2 ]] || { echo "Fehler: --yarn-orig-ctx erwartet einen Wert" >&2; exit 1; }
+      YARN_ORIG_CTX="$2"
+      shift 2
+      ;;
+    --yarn-ext-factor)
+      [[ $# -ge 2 ]] || { echo "Fehler: --yarn-ext-factor erwartet einen Wert" >&2; exit 1; }
+      YARN_EXT_FACTOR="$2"
+      shift 2
+      ;;
+    --yarn-attn-factor)
+      [[ $# -ge 2 ]] || { echo "Fehler: --yarn-attn-factor erwartet einen Wert" >&2; exit 1; }
+      YARN_ATTN_FACTOR="$2"
+      shift 2
+      ;;
+    --yarn-beta-slow)
+      [[ $# -ge 2 ]] || { echo "Fehler: --yarn-beta-slow erwartet einen Wert" >&2; exit 1; }
+      YARN_BETA_SLOW="$2"
+      shift 2
+      ;;
+    --yarn-beta-fast)
+      [[ $# -ge 2 ]] || { echo "Fehler: --yarn-beta-fast erwartet einen Wert" >&2; exit 1; }
+      YARN_BETA_FAST="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Fehler: Unbekannte Option: $1" >&2
+      exit 1
+      ;;
+    *)
+      MODEL_PATH="$1"
+      shift
+      ;;
+  esac
+done
 
 if [[ ! -x "$BIN_DIR/llama-server" ]]; then
   echo "Fehler: llama-server nicht gefunden unter $BIN_DIR/llama-server" >&2
