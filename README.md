@@ -60,6 +60,77 @@ Kontext:     über start_llama_server.sh konfiguriert
 
 ---
 
+## 1.5 Linux Mint Programmstarter + Autostart
+
+`llama-server` kann als `systemd --user` Service laufen und über zwei
+Programmstarter-Eintraege gestartet/gestoppt werden.
+
+Service anlegen:
+
+```bash
+cat > ~/.config/systemd/user/llama-server.service <<'EOF'
+[Unit]
+Description=LLAMA Server (Qwen)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/media/christoph/some_space/Compute/ML-Lab/llama-chat
+ExecStart=/media/christoph/some_space/Compute/ML-Lab/llama-chat/start_llama_server.sh /media/christoph/some_space/Compute/ML-Lab/llama-chat/models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf --host 0.0.0.0
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+EOF
+```
+
+Programmstarter-Eintraege anlegen:
+
+```bash
+cat > ~/.local/share/applications/llama-server-start.desktop <<'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LLAMA Start
+Comment=Start llama.cpp server service
+Exec=systemctl --user start llama-server.service
+Icon=media-playback-start
+Terminal=false
+Categories=Development;
+EOF
+
+cat > ~/.local/share/applications/llama-server-stop.desktop <<'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LLAMA Stop
+Comment=Stop llama.cpp server service
+Exec=systemctl --user stop llama-server.service
+Icon=media-playback-stop
+Terminal=false
+Categories=Development;
+EOF
+```
+
+Aktivieren (Autostart beim Login) und Menue aktualisieren:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable llama-server.service
+update-desktop-database ~/.local/share/applications
+```
+
+Aus eigener Anwendung toggeln:
+
+```bash
+systemctl --user start llama-server.service
+systemctl --user stop llama-server.service
+systemctl --user is-active llama-server.service
+```
+
+---
+
 ## 2. Textchat im Terminal
 
 ```bash
