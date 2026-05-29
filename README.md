@@ -51,12 +51,25 @@ opencode .
 Default:
 
 ```text
-Server:      llama-server
-API:         http://127.0.0.1:8080/v1
+Server:      llama-server (systemd user service)
+API:         http://0.0.0.0:8080/v1
 Model alias: locales_llm
-Modell:      models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf
-Kontext:     über start_llama_server.sh konfiguriert
+Modell:      models/Qwen3.5-9B-Q4_K_M.gguf
+Kontext:     32768
+Flash-Attn:  on
+Slots:       4 (parallel requests)
+Batch:       2048 / 512
 ```
+
+Profil-Wechsel (für Router-Modus):
+
+```bash
+./run_profile.sh                       # lädt profiles/default.ini
+./run_profile.sh multi-user            # Alternativ-Profil
+./run_profile.sh speed                 # Geschwindigkeits-Profil
+```
+
+Verfügbare Profile in `profiles/*.ini`. Jedes definiert Modell, Kontext, Batch und Parallelität. Der systemd-Dienst lädt direkt `start_llama_server.sh` ohne Profil.
 
 ---
 
@@ -65,10 +78,12 @@ Kontext:     über start_llama_server.sh konfiguriert
 `llama-server` kann als `systemd --user` Service laufen und über zwei
 Programmstarter-Eintraege gestartet/gestoppt werden.
 
-Die Repo-Dateien dafuer liegen hier:
+Der Service lädt das in `start_llama_server.sh` konfigurierte Default-Modell.
+
+Die Repo-Dateien:
 
 ```text
-systemd/llama-server.service.in
+systemd/llama-server.service.in   # Vorlage – kein Modell-Pfad mehr, nutzt Skript-Default
 desktop/llama-server-start.desktop
 desktop/llama-server-stop.desktop
 ```
@@ -80,7 +95,7 @@ cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
 ./install_mint_launcher.sh
 ```
 
-Aus eigener Anwendung toggeln:
+Manuell steuern:
 
 ```bash
 systemctl --user start llama-server.service

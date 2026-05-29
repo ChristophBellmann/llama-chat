@@ -4,14 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$ROOT_DIR/env.local.sh"
 BIN_DIR="$ROOT_DIR/llama.cpp/build/bin"
-MODEL_PATH="$ROOT_DIR/models/Qwen3.6-35B-A3B-UD-IQ2_M.gguf"
+MODEL_PATH="$ROOT_DIR/models/Qwen3.5-9B-Q4_K_M.gguf"
 MODEL_ALIAS="${MODEL_ALIAS:-locales_llm}"
-HOST="${HOST:-127.0.0.1}"
+HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8080}"
 CTX="${CTX:-32768}"
 GPU_LAYERS="${GPU_LAYERS:--1}"
 CACHE_TYPE_K="${CACHE_TYPE_K:-q8_0}"
 CACHE_TYPE_V="${CACHE_TYPE_V:-q8_0}"
+FLASH_ATTN="${FLASH_ATTN:-on}"
+BATCH_SIZE="${BATCH_SIZE:-2048}"
+UBATCH_SIZE="${UBATCH_SIZE:-512}"
+PARALLEL="${PARALLEL:-4}"
 LONG_CONTEXT="${LONG_CONTEXT:-0}"
 ROPE_SCALING="${ROPE_SCALING:-yarn}"
 ROPE_SCALE="${ROPE_SCALE:-2.0}"
@@ -98,6 +102,26 @@ while [[ $# -gt 0 ]]; do
       YARN_BETA_FAST="$2"
       shift 2
       ;;
+    --fa|--flash-attn)
+      [[ $# -ge 2 ]] || { echo "Fehler: --flash-attn erwartet on/off/auto" >&2; exit 1; }
+      FLASH_ATTN="$2"
+      shift 2
+      ;;
+    --batch-size)
+      [[ $# -ge 2 ]] || { echo "Fehler: --batch-size erwartet einen Wert" >&2; exit 1; }
+      BATCH_SIZE="$2"
+      shift 2
+      ;;
+    --ubatch-size)
+      [[ $# -ge 2 ]] || { echo "Fehler: --ubatch-size erwartet einen Wert" >&2; exit 1; }
+      UBATCH_SIZE="$2"
+      shift 2
+      ;;
+    --parallel)
+      [[ $# -ge 2 ]] || { echo "Fehler: --parallel erwartet einen Wert" >&2; exit 1; }
+      PARALLEL="$2"
+      shift 2
+      ;;
     --)
       shift
       break
@@ -132,6 +156,9 @@ echo "  alias: $MODEL_ALIAS"
 echo "  url:   http://$HOST:$PORT/v1"
 echo "  ctx:   $CTX"
 echo "  ngl:   $GPU_LAYERS"
+echo "  fa:    $FLASH_ATTN"
+echo "  batch: $BATCH_SIZE / $UBATCH_SIZE"
+echo "  slots: $PARALLEL"
 echo "  ctk:   $CACHE_TYPE_K"
 echo "  ctv:   $CACHE_TYPE_V"
 echo "  long:  $LONG_CONTEXT"
@@ -145,9 +172,13 @@ ARGS=(
   --port "$PORT"
   -ngl "$GPU_LAYERS"
   -c "$CTX"
+  --flash-attn "$FLASH_ATTN"
+  --batch-size "$BATCH_SIZE"
+  --ubatch-size "$UBATCH_SIZE"
   -ctk "$CACHE_TYPE_K"
   -ctv "$CACHE_TYPE_V"
   --jinja
+  --parallel "$PARALLEL"
 )
 
 if [[ "$LONG_CONTEXT" == "1" ]]; then
