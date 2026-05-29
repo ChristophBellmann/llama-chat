@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LLAMA Start
+Comment=Start llama.cpp server service
+Exec=systemctl --user start llama-server.service
+Icon=media-playback-start
+Terminal=false
+Categories=Development;

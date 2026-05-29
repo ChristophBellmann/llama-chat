@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LLAMA Stop
+Comment=Stop llama.cpp server service
+Exec=systemctl --user stop llama-server.service
+Icon=media-playback-stop
+Terminal=false
+Categories=Development;
