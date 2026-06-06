@@ -269,11 +269,20 @@ und wird via Zeroconf als `tts.neutts` automatisch erkannt.
 Jede `.wav` im Ordner erscheint als eigene wählbare Stimme.
 
 ```bash
-# Stimmen hinzufügen
-scp stimme.wav thinkthing:/home/christoph/home-assistant/wyoming/neutts/samples/
-scp stimme.txt thinkthing:/home/christoph/home-assistant/wyoming/neutts/samples/
-# Container neustarten nach neuen Stimmen:
+# 1. .wav + Transkript (.txt) erstellen
+./voice/transcribe.sh                            # alle voices/*.wav
+./voice/transcribe.sh /pfad/zu/neuen/stimmen/    # beliebiger Ordner
+
+# 2. Auf thinkthing kopieren
+scp /pfad/zu/neuen/stimmen/*.{wav,txt} thinkthing:/home/christoph/home-assistant/wyoming/neutts/samples/
+
+# 3. Container neustarten (erkennt neue Stimmen)
 ssh thinkthing "docker compose -f /home/christoph/home-assistant/docker-compose.yml restart wyoming-neutts"
+```
+
+Einzelne .wav manuell:
+```bash
+scp stimme.wav thinkthing:/home/christoph/home-assistant/wyoming/neutts/samples/
 ```
 
 Aktuelle Stimmen: `voice/*.wav` (21 VoxPopuli-Samples + greta).
