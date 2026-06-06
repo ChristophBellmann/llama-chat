@@ -8,6 +8,7 @@ import queue
 import re
 import shutil
 import subprocess
+import random
 import tempfile
 import time
 import wave
@@ -32,6 +33,7 @@ CUSTOM_RE = re.compile(r"<custom_token_(\d+)>")
 
 _HTTP = requests.Session()
 _SNAC_CACHE = {}
+_NEUTTS_CACHE: dict = {}
 
 
 
@@ -551,6 +553,61 @@ def make_reply(mode: str, text: str) -> str:
 
 
 # -----------------------------------------------------------------------------
+# NeuTTS
+# -----------------------------------------------------------------------------
+
+
+def _get_neutts():
+    if "tts" not in _NEUTTS_CACHE:
+        try:
+            from neutts import NeuTTS
+        except ImportError:
+            raise ImportError(
+                "neutts nicht installiert. Führe aus: pip install neutts[llama]"
+            )
+        backbone = os.environ.get("NEUTTS_BACKBONE", "neuphonic/neutts-nano-german-q4-gguf")
+        codec = os.environ.get("NEUTTS_CODEC", "neuphonic/neucodec")
+        device = os.environ.get("NEUTTS_DEVICE", "cpu")
+        _NEUTTS_CACHE["tts"] = NeuTTS(
+            backbone_repo=backbone,
+            backbone_device=device,
+            codec_repo=codec,
+            codec_device=device,
+        )
+    return _NEUTTS_CACHE["tts"]
+
+
+def _random_ref_wav(path: str) -> tuple[str, str]:
+    p = Path(path)
+    if p.is_file():
+        return str(p), ""
+    wavs = sorted(p.glob("*.wav"))
+    if not wavs:
+        raise FileNotFoundError(f"Keine .wav in {path}")
+    choice = random.choice(wavs)
+    txt = choice.with_suffix(".txt")
+    ref_text = txt.read_text().strip() if txt.exists() else ""
+    return str(choice), ref_text
+
+
+def synthesize_neutts(text: str) -> tuple[int, np.ndarray]:
+    text = text.strip()
+    if not text:
+        return 24000, np.zeros(0, dtype=np.float32)
+    tts = _get_neutts()
+    ref_path = os.environ.get("NEUTTS_REF_AUDIO", "")
+    if not ref_path:
+        raise ValueError("NEUTTS_REF_AUDIO muss gesetzt sein")
+    wav_path, ref_text_str = _random_ref_wav(ref_path)
+    cache_key = f"ref:{wav_path}"
+    if cache_key not in _NEUTTS_CACHE:
+        _NEUTTS_CACHE[cache_key] = tts.encode_reference(wav_path)
+    ref_text_str = ref_text_str or text
+    wav = tts.infer(text, _NEUTTS_CACHE[cache_key], ref_text_str)
+    return 24000, wav
+
+
+# -----------------------------------------------------------------------------
 # Commands
 # -----------------------------------------------------------------------------
 
@@ -565,6 +622,9 @@ def synthesize(text: str, tts: str) -> tuple[str, int, np.ndarray]:
     if tts == "orpheus-server":
         sr, audio = synthesize_orpheus(text, mode="server")
         return "Orpheus-Server", sr, audio
+    if tts == "neutts":
+        sr, audio = synthesize_neutts(text)
+        return "NeuTTS", sr, audio
     raise ValueError(tts)
 
 
@@ -580,12 +640,16 @@ def cmd_tts(args: argparse.Namespace) -> int:
 def cmd_loop(args: argparse.Namespace) -> int:
     whisper = load_whisper()
 
-    # Preload SNAC once for Orpheus modes so the first spoken answer is faster.
+    # Preload once for Orpheus / NeuTTS so the first spoken answer is faster.
     if args.tts in {"orpheus", "orpheus-server"}:
         device = os.environ.get("SNAC_DEVICE", "cpu").strip() or "cpu"
         t0 = time.perf_counter()
         _get_snac_model(device)
         print(f"SNAC bereit ({device}) nach {time.perf_counter() - t0:.2f}s", flush=True)
+    if args.tts == "neutts":
+        t0 = time.perf_counter()
+        _get_neutts()
+        print(f"NeuTTS bereit nach {time.perf_counter() - t0:.2f}s", flush=True)
 
     print(f"Voice Loop bereit. Reply={args.reply}, TTS={args.tts}. Abbruch mit Ctrl+C.", flush=True)
 
@@ -625,13 +689,13 @@ def main() -> int:
     op.set_defaults(func=cmd_orpheus_path)
 
     t = sub.add_parser("tts")
-    t.add_argument("--tts", choices=["piper", "orpheus", "orpheus-server"], default=os.environ.get("VOICE_TTS", "piper"))
+    t.add_argument("--tts", choices=["piper", "orpheus", "orpheus-server", "neutts"], default=os.environ.get("VOICE_TTS", "neutts"))
     t.add_argument("text", nargs="*")
     t.set_defaults(func=cmd_tts)
 
     l = sub.add_parser("loop")
     l.add_argument("--reply", choices=["echo", "static", "llama"], default="echo")
-    l.add_argument("--tts", choices=["piper", "orpheus", "orpheus-server"], default=os.environ.get("VOICE_TTS", "piper"))
+    l.add_argument("--tts", choices=["piper", "orpheus", "orpheus-server", "neutts"], default=os.environ.get("VOICE_TTS", "neutts"))
     l.set_defaults(func=cmd_loop)
 
     s = sub.add_parser("smoke")

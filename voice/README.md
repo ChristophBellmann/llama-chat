@@ -229,6 +229,55 @@ Gut ist eine Folge von Tokens:
 <custom_token_...><custom_token_...>
 ```
 
+## NeuTTS (neurales TTS mit Voice Cloning)
+
+Alternative zu Piper/Orpheus. Nutzt das `neuphonic/neutts-nano-german-q4-gguf`-Modell (0.2B Parameter, CPU, ~116M aktiv).
+
+### Lokal
+
+```bash
+sudo apt install espeak-ng
+pip install neutts[llama]
+
+# Einmalig testen
+export NEUTTS_REF_AUDIO=/pfad/zu/stimme.wav
+./voice/run.sh tts --tts neutts "Hallo Welt"
+
+# Oder Ordner mit mehreren Stimmen (zufällige Auswahl pro Synthese)
+export NEUTTS_REF_AUDIO=/pfad/zu/stimmen/
+./voice/run.sh loop --reply llama
+```
+
+Jede `.wav`-Datei im Ordner wird als eigene Stimme registriert. In HA kannst du dann bei TTS die Stimme auswählen (z. B. `voxpopuli_de_000005`).
+
+Umgebungsvariablen:
+
+```text
+NEUTTS_REF_AUDIO   Pfad zur .wav oder Ordner mit .wav-Dateien
+NEUTTS_BACKBONE    HuggingFace-Repo (default: neuphonic/neutts-nano-german-q4-gguf)
+NEUTTS_CODEC       Codec-Repo (default: neuphonic/neucodec)
+NEUTTS_DEVICE      cpu (default) | cuda
+VOICE_TTS          neutts setzen für dauerhaften Default
+```
+
+Referenz-WAVs sollten 3–15s, mono und sauber sein. Optional `.txt`-Datei mit Transkript danebenlegen.
+
+### Home Assistant (Docker auf thinkthing)
+
+Ein Wyoming-Server (`wyoming-neutts`) läuft als Docker-Container im HA-Compose-Stack
+und wird via Zeroconf als `tts.neutts` automatisch erkannt.
+Jede `.wav` im Ordner erscheint als eigene wählbare Stimme.
+
+```bash
+# Stimmen hinzufügen
+scp stimme.wav thinkthing:/home/christoph/home-assistant/wyoming/neutts/samples/
+scp stimme.txt thinkthing:/home/christoph/home-assistant/wyoming/neutts/samples/
+# Container neustarten nach neuen Stimmen:
+ssh thinkthing "docker compose -f /home/christoph/home-assistant/docker-compose.yml restart wyoming-neutts"
+```
+
+Aktuelle Stimmen: `voice/*.wav` (21 VoxPopuli-Samples + greta).
+
 ## Betriebsarten
 
 ### Performanter Standard
