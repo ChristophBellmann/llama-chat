@@ -1,0 +1,22 @@
+{
+  auto_https disable_redirects
+}
+
+https://thinkthing, https://thinkthing.fritz.box {
+  tls internal
+
+  handle_path /ma/* {
+    reverse_proxy 127.0.0.1:8095
+  }
+
+  handle {
+    reverse_proxy 127.0.0.1:8123 {
+      header_up X-Forwarded-Proto https
+    }
+  }
+}
+
+https://thinkthing:9443, https://thinkthing.fritz.box:9443 {
+  tls internal
+  reverse_proxy 127.0.0.1:8095
+}

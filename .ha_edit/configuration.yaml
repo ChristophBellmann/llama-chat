@@ -1,0 +1,121 @@
+# ==============================
+# Home Assistant – Hauptkonfiguration
+# ==============================
+
+# Lädt Standard-Integrationen (Frontend, Automatisierung, History usw.)
+default_config:
+
+# ------------------------------
+# HTTP / Reverse Proxy (Caddy)
+# ------------------------------
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+    - 172.16.0.0/12
+
+# ------------------------------
+# Frontend & Themes
+# ------------------------------
+frontend:
+  themes: !include_dir_merge_named themes
+
+# ------------------------------
+# Automationen, Skripte, Szenen
+# ------------------------------
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# ------------------------------
+# Lovelace (YAML-Mode + Ressourcen + Dashboards)
+# ------------------------------
+lovelace:
+  mode: yaml
+  resources:
+    - url: /hacsfiles/lovelace-mushroom/mushroom.js
+      type: module
+    - url: /hacsfiles/better-thermostat-ui-card/better-thermostat-ui-card.js
+      type: module
+    - url: /hacsfiles/lovelace-fold-entity-row/fold-entity-row.js
+      type: module
+    - url: /hacsfiles/lovelace-expander-card/expander-card.js   # ← neu
+      type: module
+    - url: /hacsfiles/lovelace-multiple-entity-row/multiple-entity-row.js
+      type: module
+    - url: /hacsfiles/lovelace-paper-buttons-row/paper-buttons-row.js
+      type: module
+    - url: /hacsfiles/stack-in-card/stack-in-card.js
+      type: module
+    - url: /hacsfiles/kiosk-mode/kiosk-mode.js
+      type: module
+    - url: /local/custom_lovelace/xiaomi-vacuum-map-card.js?v=20260325f
+      type: module
+    - url: /browser_mod.js
+      type: module
+
+  dashboards:
+    lovelace-heizung:
+      mode: yaml
+      title: Heizung
+      icon: mdi:radiator
+      show_in_sidebar: true
+      filename: lovelace/heizung.yaml
+    lovelace-licht:
+      mode: yaml
+      title: Licht
+      icon: mdi:lightbulb-group
+      show_in_sidebar: true
+      filename: lovelace/licht.yaml
+    lovelace-bewaesserung:
+      mode: yaml
+      title: Bewässerung
+      icon: mdi:sprinkler-variant
+      show_in_sidebar: true
+      filename: lovelace/bewaesserung.yaml
+    lovelace-roboter:
+      mode: yaml
+      title: Roboter
+      icon: mdi:robot-vacuum
+      show_in_sidebar: true
+      filename: lovelace/roboter.yaml
+
+panel_custom:
+  - name: local-chat-panel
+    sidebar_title: Chat
+    sidebar_icon: mdi:chat-processing
+    url_path: chat
+    module_url: /local/chat/chat-panel.js?v=20260529k
+    require_admin: false
+    config:
+      language: de
+      local_llm_agent_id: conversation.locales_llm_ai_agent
+      tts_script_entity_id: script.tts_ansage
+      default_target_player: echo_base
+      default_piper_voice: de_DE-ramona-low
+      default_piper_speed_profile: normal
+      piper_tts_entity_normal: tts.piper
+      piper_tts_entity_fast: tts.piper_2
+      piper_tts_entity_slow: tts.piper_3
+# ------------------------------
+# Home Assistant – Packages
+# ------------------------------
+homeassistant:
+  packages: !include_dir_named packages
+
+# ------------------------------
+# Text-to-Speech (Standard)
+# ------------------------------
+tts:
+  - platform: google_translate
+    language: 'de'
+
+browser_mod:
+tuya_water_timer:
+logger:
+  default: warning
+  logs:
+    habluetooth.manager: critical
+    homeassistant.components.bluetooth: critical
+    bleak_retry_connector: critical

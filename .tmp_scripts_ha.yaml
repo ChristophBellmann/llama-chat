@@ -1,0 +1,308 @@
+kueche_set_temperature:
+  alias: Küche – Setze Solltemperatur
+  sequence:
+  - service: climate.set_temperature
+    data:
+      temperature: '{{ temperature }}'
+      entity_id:
+      - climate.kitchen_left
+      - climate.kitchen_right
+kueche_set_hvac_mode:
+  alias: Küche – Setze Modus
+  sequence:
+  - service: climate.set_hvac_mode
+    data:
+      hvac_mode: '{{ hvac_mode }}'
+      entity_id:
+      - climate.kitchen_left
+      - climate.kitchen_right
+kueche_set_preset_mode:
+  alias: Küche – Setze Preset
+  sequence:
+  - service: climate.set_preset_mode
+    data:
+      preset_mode: '{{ preset_mode }}'
+      entity_id:
+      - climate.kitchen_left
+      - climate.kitchen_right
+wohnzimmer_oben_set_temperature:
+  alias: Wohnzimmer oben – Setze Solltemperatur
+  sequence:
+  - service: climate.set_temperature
+    data:
+      temperature: '{{ temperature }}'
+      entity_id:
+      - climate.wohnzimmer_oben_links
+      - climate.wohnzimmer_oben_rechts
+wohnzimmer_oben_set_hvac_mode:
+  alias: Wohnzimmer oben – Setze Modus
+  sequence:
+  - service: climate.set_hvac_mode
+    data:
+      hvac_mode: '{{ hvac_mode }}'
+      entity_id:
+      - climate.wohnzimmer_oben_links
+      - climate.wohnzimmer_oben_rechts
+wohnzimmer_oben_set_preset_mode:
+  alias: Wohnzimmer oben – Setze Preset
+  sequence:
+  - service: climate.set_preset_mode
+    data:
+      preset_mode: '{{ preset_mode }}'
+      entity_id:
+      - climate.wohnzimmer_oben_links
+      - climate.wohnzimmer_oben_rechts
+wohnzimmer_unten_set_temperature:
+  alias: Wohnzimmer unten – Setze Solltemperatur
+  sequence:
+  - service: climate.set_temperature
+    data:
+      temperature: '{{ temperature }}'
+      entity_id:
+      - climate.wohnzimmer_unten_links
+      - climate.wohnzimmer_unten_rechts
+wohnzimmer_unten_set_hvac_mode:
+  alias: Wohnzimmer unten – Setze Modus
+  sequence:
+  - service: climate.set_hvac_mode
+    data:
+      hvac_mode: '{{ hvac_mode }}'
+      entity_id:
+      - climate.wohnzimmer_unten_links
+      - climate.wohnzimmer_unten_rechts
+wohnzimmer_unten_set_preset_mode:
+  alias: Wohnzimmer unten – Setze Preset
+  sequence:
+  - service: climate.set_preset_mode
+    data:
+      preset_mode: '{{ preset_mode }}'
+      entity_id:
+      - climate.wohnzimmer_unten_links
+      - climate.wohnzimmer_unten_rechts
+heizung_eco_all:
+  alias: Heizung – Alles ECO
+  sequence:
+  - service: climate.set_temperature
+    target:
+      entity_id:
+      - climate.schlafzimmer
+      - climate.gang
+      - climate.bad
+    data:
+      temperature: '{{ states(''input_number.eco_temp_global'') | float(17) }}'
+  - service: climate.set_hvac_mode
+    target:
+      entity_id:
+      - climate.schlafzimmer
+      - climate.gang
+      - climate.bad
+    data:
+      hvac_mode: heat
+  mode: single
+  icon: mdi:leaf
+heizung_nachtmodus:
+  alias: Heizung – Nachtmodus
+  sequence:
+  - service: climate.set_temperature
+    target:
+      entity_id: climate.schlafzimmer
+    data:
+      temperature: '{{ states(''input_number.schlafzimmer_nacht_temp'') | float(20)
+        }}'
+  - service: climate.set_hvac_mode
+    target:
+      entity_id: climate.schlafzimmer
+    data:
+      hvac_mode: heat
+  mode: single
+  icon: mdi:weather-night
+lokalen_llm_fragen_und_antwort_sprechen:
+  alias: Lokalen LLM fragen und Antwort sprechen
+  mode: single
+  fields:
+    frage:
+      name: Frage
+      description: Text, der an den lokalen LLM gesendet wird
+      required: true
+      selector:
+        text:
+    ziel_player:
+      name: Ziel-Lautsprecher
+      description: Echo Base oder SAT1 auswählen
+      required: true
+      default: echo_base
+      selector:
+        select:
+          options:
+          - label: Echo Base
+            value: echo_base
+          - label: SAT1
+            value: sat1
+  sequence:
+  - variables:
+      media_player: "{% if ziel_player == 'sat1' %}\n  media_player.satellite1_c412d0_sat1_media_player\n{%
+        else %}\n  media_player.atoms3r_voice_echo_base_player\n{% endif %}\n"
+  - action: conversation.process
+    data:
+      text: '{{ frage }}'
+      language: de
+    response_variable: llm_antwort
+  - action: tts.speak
+    target:
+      entity_id: tts.piper
+    data:
+      media_player_entity_id: '{{ media_player | trim }}'
+      message: '{{ llm_antwort.response.speech.plain.speech }}'
+  description: ''
+
+llm_fragen_und_sprechen:
+  alias: LLM fragen und sprechen
+  description: Fragt den lokalen LLM-Agenten und spricht die Antwort per Piper.
+  mode: single
+  fields:
+    frage:
+      name: Frage
+      description: Text für den lokalen LLM.
+      required: true
+      selector:
+        text:
+    ziel_player:
+      name: Ziel-Lautsprecher
+      description: Ausgabeziel für die Antwort.
+      required: true
+      default: echo_base
+      selector:
+        select:
+          options:
+          - label: Echo Base
+            value: echo_base
+          - label: SAT1
+            value: sat1
+          - label: Alle
+            value: all
+  sequence:
+  - action: conversation.process
+    data:
+      agent_id: conversation.locales_llm_ai_agent
+      text: '{{ frage }}'
+      language: de
+    response_variable: llm_antwort
+  - variables:
+      antwort_text: "{% if llm_antwort is defined and llm_antwort.response is defined\n  and llm_antwort.response.speech is defined and llm_antwort.response.speech.plain is defined\n  and llm_antwort.response.speech.plain.speech is defined\n%}\n  {{ llm_antwort.response.speech.plain.speech }}\n{% else %}\n  Ich konnte gerade keine Antwort erzeugen.\n{% endif %}\n"
+  - action: script.tts_ansage
+    data:
+      nachricht: '{{ antwort_text | trim }}'
+      ziel_player: '{{ ziel_player }}'
+
+tts_ansage:
+  alias: TTS Ansage
+  description: Spricht eine Nachricht per Piper auf ausgewählten Ziel-Playern.
+  mode: parallel
+  fields:
+    nachricht:
+      name: Nachricht
+      description: Zu sprechender Text.
+      required: true
+      selector:
+        text:
+    ziel_player:
+      name: Ziel-Lautsprecher
+      description: Ausgabeziel für die Ansage.
+      required: true
+      default: echo_base
+      selector:
+        select:
+          options:
+          - label: Echo Base
+            value: echo_base
+          - label: SAT1
+            value: sat1
+          - label: Alle
+            value: all
+  variables:
+    player_echo_base: media_player.atoms3r_voice_echo_base_player
+    player_sat1: media_player.satellite1_c412d0_sat1_media_player
+  sequence:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ ziel_player == ''echo_base'' }}'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ states(player_echo_base) not in [''unavailable'', ''unknown''] }}'
+          sequence:
+          - action: tts.speak
+            target:
+              entity_id: tts.piper
+            data:
+              media_player_entity_id: '{{ player_echo_base }}'
+              message: '{{ nachricht }}'
+        default:
+        - action: system_log.write
+          data:
+            level: warning
+            message: 'TTS übersprungen: Echo Base nicht verfügbar.'
+    - conditions:
+      - condition: template
+        value_template: '{{ ziel_player == ''sat1'' }}'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ states(player_sat1) not in [''unavailable'', ''unknown''] }}'
+          sequence:
+          - action: tts.speak
+            target:
+              entity_id: tts.piper
+            data:
+              media_player_entity_id: '{{ player_sat1 }}'
+              message: '{{ nachricht }}'
+        default:
+        - action: system_log.write
+          data:
+            level: warning
+            message: 'TTS übersprungen: SAT1 nicht verfügbar.'
+    - conditions:
+      - condition: template
+        value_template: '{{ ziel_player == ''all'' }}'
+      sequence:
+      - parallel:
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ states(player_echo_base) not in [''unavailable'', ''unknown''] }}'
+            sequence:
+            - action: tts.speak
+              target:
+                entity_id: tts.piper
+              data:
+                media_player_entity_id: '{{ player_echo_base }}'
+                message: '{{ nachricht }}'
+          default:
+          - action: system_log.write
+            data:
+              level: warning
+              message: 'TTS (all): Echo Base nicht verfügbar.'
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ states(player_sat1) not in [''unavailable'', ''unknown''] }}'
+            sequence:
+            - action: tts.speak
+              target:
+                entity_id: tts.piper
+              data:
+                media_player_entity_id: '{{ player_sat1 }}'
+                message: '{{ nachricht }}'
+          default:
+          - action: system_log.write
+            data:
+              level: warning
+              message: 'TTS (all): SAT1 nicht verfügbar.'
+    default:
+    - action: system_log.write
+      data:
+        level: warning
+        message: 'TTS übersprungen: unbekannter ziel_player={{ ziel_player }}.'

@@ -1,0 +1,83 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: "no"
+    network_mode: host
+    environment:
+      - TZ=Europe/Berlin
+      - OPENAI_BASE_URL=http://127.0.0.1:11435/v1
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+
+  wyoming-whisper:
+    image: rhasspy/wyoming-whisper:latest
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - --uri
+      - tcp://0.0.0.0:10300
+      - --model
+      - small-int8
+      - --language
+      - de
+      - --data-dir
+      - /data
+      - --beam-size
+      - "1"
+      - --cpu-threads
+      - "8"
+      - --vad-filter
+      - --initial-prompt
+      - "Home Assistant Befehle auf Deutsch: schalte Licht an, schalte Licht aus, stelle Temperatur auf 21 Grad."
+    volumes:
+      - ./wyoming/whisper:/data
+
+  wyoming-piper:
+    image: rhasspy/wyoming-piper:latest
+    restart: unless-stopped
+    network_mode: host
+    command: --uri tcp://0.0.0.0:10200 --voice de_DE-ramona-low --length-scale 1.00 --zeroconf piper-normal
+    volumes:
+      - ./wyoming/piper:/data
+
+  wyoming-piper-fast:
+    image: rhasspy/wyoming-piper:latest
+    restart: unless-stopped
+    network_mode: host
+    command: --uri tcp://0.0.0.0:10210 --voice de_DE-ramona-low --length-scale 0.65 --zeroconf piper-fast
+    volumes:
+      - ./wyoming/piper:/data
+
+  wyoming-piper-slow:
+    image: rhasspy/wyoming-piper:latest
+    restart: unless-stopped
+    network_mode: host
+    command: --uri tcp://0.0.0.0:10212 --voice de_DE-ramona-low --length-scale 1.35 --zeroconf piper-slow
+    volumes:
+      - ./wyoming/piper:/data
+
+
+  ollama-cpu:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11435
+    volumes:
+      - ./llm/ollama:/root/.ollama
+
+  music-assistant-server:
+    image: ghcr.io/music-assistant/server:latest
+    container_name: music-assistant-server
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./music-assistant/data:/data
+    cap_add:
+      - SYS_ADMIN
+      - DAC_READ_SEARCH
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - LOG_LEVEL=info
