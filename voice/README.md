@@ -278,6 +278,26 @@ ssh thinkthing "docker compose -f /home/christoph/home-assistant/docker-compose.
 
 Aktuelle Stimmen: `voice/*.wav` (21 VoxPopuli-Samples + greta).
 
+### Stimme in Home Assistant ändern
+
+**Pro Automation/Skript:** In der TTS-Aktion `tts.neutts` als Engine wählen,
+dann unter "Stimme" die gewünschte Stimme aus der Dropdown-Liste auswählen
+(z. B. `voxpopuli_de_000005`).
+
+**Als Standardstimme:** In HA unter
+Einstellungen → Sprachassistent → Vorzugsstimme → `neutts` → gewünschte Stimme wählen.
+
+**Via Skript/YAML:**
+```yaml
+action: tts.speak
+data:
+  cache: true
+  message: "Der Text, der vorgelesen werden soll."
+  entity_id: tts.neutts
+  options:
+    voice: voxpopuli_de_000015
+```
+
 ## Betriebsarten
 
 ### Performanter Standard
