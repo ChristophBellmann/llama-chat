@@ -57,7 +57,7 @@ Model alias: locales_llm
 Modell:      models/Qwen3.5-9B-Q4_K_M.gguf
 Kontext:     32768
 Flash-Attn:  on
-Slots:       4 (parallel requests)
+Slots:       2 (parallel requests, 16384 tokens pro Slot bei 32768 Kontext)
 Batch:       2048 / 512
 ```
 
