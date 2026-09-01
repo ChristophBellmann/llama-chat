@@ -8,7 +8,13 @@ source "$ROOT_DIR/env.local.sh"
 # kennt beide nicht und ist als Rueckfallebene weiter da:
 #   LLAMA_BIN_DIR="$ROOT_DIR/llama.cpp/build/bin" ./start_llama_server.sh
 BIN_DIR="${LLAMA_BIN_DIR:-$ROOT_DIR/llama.cpp-b10741/build/bin}"
-MODEL_PATH="$ROOT_DIR/models/gemma-4-12B-it-qat-UD-Q4_K_XL.gguf"
+# Dieses Skript ist der ExecStart der systemd-Unit llama-server.service und
+# damit das Produktiv-LLM fuer Home Assistant (Alias locales_llm, Primary des
+# llm-routers auf thinkthing). Modellwechsel hier sind Produktivaenderungen.
+# Ueberschreibbar per Env, damit die Unit ein Modell festnageln kann, ohne dass
+# das Textchat-Profil in profiles/default.ini es mitzieht:
+#   systemctl --user set-environment MODEL_PATH=...   oder Drop-in mit Environment=
+MODEL_PATH="${MODEL_PATH:-$ROOT_DIR/models/gemma-4-12B-it-qat-UD-Q4_K_XL.gguf}"
 MODEL_ALIAS="${MODEL_ALIAS:-locales_llm}"
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8080}"

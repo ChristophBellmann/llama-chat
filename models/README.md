@@ -143,6 +143,49 @@ CLI (`--host`/`--port`, ueberschreibbar via `HOST=`/`PORT=`). In
 `profiles/default.ini` stehen die Zeilen nur noch auskommentiert als
 Dokumentation.
 
+## Dieses Repo ist das Produktiv-LLM von Home Assistant
+
+`start_llama_server.sh` ist der `ExecStart` der systemd-User-Unit
+`llama-server.service`. Die Unit ist `enabled`, und `systemctl --user start
+llama-server.service` ist der normale Startweg. Damit ist jede Aenderung an
+diesem Skript eine **Produktivaenderung an Home Assistant** auf `thinkthing`:
+
+- Der `llm-router` (`thinkthing:11436`) nutzt `192.168.178.51:8080` als Primary
+  und faellt sonst auf OpenCode Go in der Cloud zurueck. Solange dieser Dienst
+  aus ist, verlassen bei jeder Wakeword-Aeusserung die Namen und Zustaende der
+  19 freigegebenen Entitaeten das LAN.
+- Der Alias muss `locales_llm` bleiben, sonst findet HA das Modell nicht.
+- Zwei Slots mit je 16.384 Token sind in `docs/voice-stack.md` des
+  Smarthome-Repos festgeschrieben (`PARALLEL=2`, `CTX=32768`).
+- `MODEL_PATH` ist per Env ueberschreibbar, damit die Unit ein Modell
+  festnageln kann, ohne dass `profiles/default.ini` es mitzieht.
+
+Das Smarthome-Repo verlangt: *"Ein groesserer Kandidat muss erst im identischen
+HA-Test gewinnen, bevor er dieses Modell ersetzt."*
+
+### gemma-4-12B im HA-Test, 01.09.2026
+
+Gemessen ueber `conversation.process` gegen
+`conversation.locales_llm_ai_agent`, drei Laeufe je Frage, erster Lauf als
+Kaltstart verworfen:
+
+| Fall | Werkzeug | warm | Ergebnis |
+| --- | --- | ---: | --- |
+| "Wie spaet ist es?" | `GetDateTime` | 2,07 s | "Es ist 22 Uhr 12." |
+| "Wie warm ist es im Bad?" | `GetLiveContext` | 4,4 s | "Im Bad sind es aktuell 24 Grad." |
+| "Mach das Licht im Bad an." | Lichtwerkzeug | 1,87-1,93 s | Werkzeug gewaehlt |
+| "Mach das Licht im Gang an." | Lichtwerkzeug | 2,18 s | `light.gang_licht` off -> on |
+
+Die dokumentierte Referenz fuer Qwen3.5-9B lautet "waehlte das Lichtwerkzeug in
+rund 1,95 Sekunden korrekt" -- gemma-4-12B liegt mit 1,87-1,93 s gleichauf.
+Tool-Calling funktioniert also auch mit abgeschaltetem Thinking.
+
+**Der Bad-Test beweist nur die Werkzeugwahl, nicht die Ausfuehrung:**
+`light.bad_deckenlicht` ist seit 10:02 `unavailable`, es ging kein Licht an,
+obwohl die Antwort das behauptete. Den Beweis am Geraet liefert erst der
+Gang-Test. Wer hier misst, prueft vorher, ob die Zielentitaet ueberhaupt
+erreichbar ist.
+
 ## Profile
 
 Die Profile in `profiles/*.ini` legen fest, welches Modell mit welchen Parametern geladen wird.
