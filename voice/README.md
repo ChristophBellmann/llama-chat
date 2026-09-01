@@ -488,6 +488,61 @@ PORT=8080 ./start_llama_server.sh models/Qwen3.5-9B-Q4_K_M.gguf &
 ./start_orpheus_de_server.sh &
 ```
 
+## Orpheus als TTS in Home Assistant
+
+Home Assistant spricht TTS ueber das Wyoming-Protokoll. Dessen Ablauf
+`AudioStart` -> `AudioChunk*` -> `AudioStop` ist streamfaehig, also schreibt
+`profiles/wyoming-orpheus/server.py` die Chunks raus, waehrend das Modell noch
+generiert -- anders als `profiles/wyoming-neutts/server.py`, das erst komplett
+synthetisiert und danach zerlegt.
+
+Start auf der Workstation (beide Dienste noetig):
+
+```bash
+./start_orpheus_de_server.sh      # Orpheus-LLM, Port 8082, GPU
+./start_wyoming_orpheus.sh        # Wyoming-TTS, Port 10401
+```
+
+In Home Assistant als Wyoming-Integration mit Host `192.168.178.51` und Port
+`10401` eintragen; die Entitaet heisst dann `tts.orpheus_de`. Port 10400 ist
+auf `thinkthing` schon von `wyoming-neutts` belegt, deshalb 10401.
+
+### Gemessen am 01.09.2026
+
+Volle Kette ueber Home Assistant, LLM und TTS beide auf der Workstation:
+
+| Schritt | Zeit |
+| --- | ---: |
+| `conversation.process` gegen gemma-4-12B | 1,8-7,0 s |
+| Orpheus-Synthese, erster Chunk | 0,61-0,69 s |
+| Orpheus-Synthese gesamt (2,6-3,1 s Audio) | 2,8-3,0 s |
+
+Der Server auf der Workstation protokolliert jede Synthese mit Audiolaenge,
+Zeit bis zum ersten Chunk und Gesamtdauer -- das ist die verlaessliche Messung,
+nicht die Zeit ueber SSH.
+
+Home Assistant wandelt die Ausgabe selbst nach MP3 (24 kHz mono, 96 kbps) und
+**cached sie**: derselbe Text loest keine zweite Synthese aus. Wer Messreihen
+faehrt, variiert den Text.
+
+### Vorsicht: das erste Wort
+
+Die bekannte Schwaeche des DE-Finetunes wird in Home Assistant
+sicherheitsrelevant. Aus gemmas Antwort "Im Bad gibt es keinen Sensor fuer die
+Temperatur." machte Orpheus hoerbar "Im **Wald** gibt es keinen Sensor". Bei
+Raumnamen am Satzanfang kann die Ausgabe damit das Gegenteil dessen sagen, was
+gemeint war. Ein kurzes Fuellwort vor der Antwort umgeht es.
+
+Deshalb ist `tts.orpheus_de` bewusst **nur eine zusaetzliche Entitaet** und
+nicht in der Assist-Pipeline verdrahtet: produktiv bleibt Piper mit
+`de_DE-ramona-low`.
+
+### VRAM
+
+Mit gemma-4-12B (2 Slots) und dem Orpheus-LLM zusammen: 11,66 von 11,98 GiB,
+also 97 Prozent und 0,32 GiB frei. SNAC laeuft auf der CPU und kostet kein
+VRAM. Fuer Dauerbetrieb ist das knapp; Qwen3.5-9B statt gemma laesst 1,85 GiB.
+
 ## Troubleshooting
 
 ### Loop antwortet nicht
