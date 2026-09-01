@@ -439,6 +439,13 @@ Stellschrauben: `ORPHEUS_STREAM_FRAMES` (Frames pro Decode-Block, Default 7 --
 kleiner = frueherer Ton, mehr CPU-Last) und das Polster in `play_audio_stream`
 (Default 0,6 s).
 
+Lange Texte werden an Satzgrenzen in Abschnitte von hoechstens 320 Zeichen
+geteilt (`ORPHEUS_STREAM_SEGMENT_CHARS`). Jeder Abschnitt erhaelt einen eigenen
+Completion-Request. Das Tokenbudget pro Abschnitt ist 3000
+(`ORPHEUS_TTS_N_PREDICT`); EOS beendet kurze Abschnitte weiterhin sofort.
+Vorher war das Budget fest auf 600 gesetzt. Dadurch endeten laengere Ausgaben
+reproduzierbar nach exakt 7,25 Sekunden mitten im Satz.
+
 ### Was vorher gebremst hat
 
 Zwei Einstellungen im Completion-Request waren die eigentlichen Blocker:

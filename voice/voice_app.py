@@ -35,6 +35,9 @@ _HTTP = requests.Session()
 _SNAC_CACHE = {}
 _NEUTTS_CACHE: dict = {}
 
+ORPHEUS_DEFAULT_N_PREDICT = 3000
+ORPHEUS_DEFAULT_SEGMENT_CHARS = 320
+
 
 
 # -----------------------------------------------------------------------------
@@ -337,8 +340,52 @@ def _snac_decode_frames(codes: list[int]) -> np.ndarray:
     return np.clip(audio, -1.0, 1.0)
 
 
-def stream_orpheus_audio(text: str):
-    """Generator: liefert Audio-Chunks, waehrend das Modell noch generiert.
+def _split_orpheus_text(text: str, max_chars: int | None = None) -> list[str]:
+    """Teilt lange TTS-Texte an Satz-/Wortgrenzen in sichere Requests."""
+    normalized = " ".join(text.split())
+    if not normalized:
+        return []
+
+    limit = max_chars or int(
+        os.environ.get("ORPHEUS_STREAM_SEGMENT_CHARS", str(ORPHEUS_DEFAULT_SEGMENT_CHARS))
+    )
+    if limit < 40:
+        raise ValueError("ORPHEUS_STREAM_SEGMENT_CHARS muss mindestens 40 sein")
+
+    sentences = re.split(r"(?<=[.!?])\s+", normalized)
+    segments: list[str] = []
+    current = ""
+
+    def append_words(value: str) -> None:
+        nonlocal current
+        for word in value.split():
+            candidate = f"{current} {word}".strip()
+            if current and len(candidate) > limit:
+                segments.append(current)
+                current = word
+            else:
+                current = candidate
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        candidate = f"{current} {sentence}".strip()
+        if current and len(candidate) > limit:
+            segments.append(current)
+            current = ""
+        if len(sentence) > limit:
+            append_words(sentence)
+        else:
+            current = f"{current} {sentence}".strip()
+
+    if current:
+        segments.append(current)
+    return segments
+
+
+def _stream_orpheus_segment(text: str):
+    """Liefert Audio-Chunks eines begrenzten Textabschnitts während der Generierung.
 
     Ohne Streaming wartet der Aufrufer auf die komplette Generierung (~6-7 s fuer
     einen Satz) bevor der erste Ton kommt. Hier wird alle ORPHEUS_STREAM_FRAMES
@@ -350,7 +397,9 @@ def stream_orpheus_audio(text: str):
     url = os.environ.get("ORPHEUS_COMPLETION_URL", "http://127.0.0.1:8082/completion")
     payload = {
         "prompt": orpheus_prompt(text),
-        "n_predict": int(os.environ.get("ORPHEUS_TTS_N_PREDICT", "600")),
+        "n_predict": int(
+            os.environ.get("ORPHEUS_TTS_N_PREDICT", str(ORPHEUS_DEFAULT_N_PREDICT))
+        ),
         "temperature": float(os.environ.get("ORPHEUS_TTS_TEMP", "0.6")),
         "top_p": float(os.environ.get("ORPHEUS_TTS_TOP_P", "0.9")),
         "repeat_penalty": float(os.environ.get("ORPHEUS_TTS_REPEAT_PENALTY", "1.1")),
@@ -412,6 +461,12 @@ def stream_orpheus_audio(text: str):
     yield from flush(final=True)
 
 
+def stream_orpheus_audio(text: str):
+    """Streamt auch lange Texte vollständig, in begrenzten TTS-Abschnitten."""
+    for segment in _split_orpheus_text(text):
+        yield from _stream_orpheus_segment(segment)
+
+
 def generate_orpheus_tokens_cli(text: str) -> str:
     model = find_orpheus_model()
     llama_completion = ROOT_DIR / "llama.cpp" / "build" / "bin" / "llama-completion"
@@ -426,7 +481,8 @@ def generate_orpheus_tokens_cli(text: str) -> str:
         "--ctx-size", os.environ.get("ORPHEUS_TTS_CTX", "2048"),
         "--threads", os.environ.get("ORPHEUS_TTS_THREADS", "6"),
         "--gpu-layers", os.environ.get("ORPHEUS_TTS_GPU_LAYERS", "0"),
-        "--n-predict", os.environ.get("ORPHEUS_TTS_N_PREDICT", "600"),
+        "--n-predict",
+        os.environ.get("ORPHEUS_TTS_N_PREDICT", str(ORPHEUS_DEFAULT_N_PREDICT)),
         "--temp", os.environ.get("ORPHEUS_TTS_TEMP", "0.6"),
         "--top-p", os.environ.get("ORPHEUS_TTS_TOP_P", "0.9"),
         "--repeat-penalty", os.environ.get("ORPHEUS_TTS_REPEAT_PENALTY", "1.1"),
@@ -466,7 +522,9 @@ def generate_orpheus_tokens_server(text: str) -> str:
     url = os.environ.get("ORPHEUS_COMPLETION_URL", "http://127.0.0.1:8082/completion")
     payload = {
         "prompt": orpheus_prompt(text),
-        "n_predict": int(os.environ.get("ORPHEUS_TTS_N_PREDICT", "600")),
+        "n_predict": int(
+            os.environ.get("ORPHEUS_TTS_N_PREDICT", str(ORPHEUS_DEFAULT_N_PREDICT))
+        ),
         "temperature": float(os.environ.get("ORPHEUS_TTS_TEMP", "0.6")),
         "top_p": float(os.environ.get("ORPHEUS_TTS_TOP_P", "0.9")),
         "repeat_penalty": float(os.environ.get("ORPHEUS_TTS_REPEAT_PENALTY", "1.1")),
