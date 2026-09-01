@@ -456,6 +456,38 @@ Das **erste Wort** einer Aeusserung ist mit diesem DE-Finetune unzuverlaessig
 Das tritt gestreamt wie ungestreamt auf, ist also keine Folge des Streamings.
 Wer das umgehen will, stellt der Antwort ein kurzes Fuellwort voran.
 
+## Voice-Stack: LLM + Orpheus gleichzeitig
+
+Gemessen am 01.09.2026, beide Server parallel auf der RX 6700 XT
+(`start_llama_server.sh` auf 8080, `start_orpheus_de_server.sh` auf 8082),
+Orpheus belegt allein ~2,9 GiB:
+
+| Antwort-LLM | VRAM gesamt | frei | Bewertung |
+| --- | ---: | ---: | --- |
+| `gemma-4-12B-it-qat` (Default) | 11,66 GiB (97 %) | 0,32 GiB | laeuft, aber ohne Reserve |
+| `Qwen3.5-9B-Q4_K_M` | 10,14 GiB (85 %) | 1,85 GiB | empfohlen fuer den Voice-Stack |
+
+Ende-zu-Ende mit gemma-4-12B, Frage rein bis erster gesprochener Ton:
+
+| Frage | gemma | 1. Ton (TTS) | **gesamt** | Audio |
+| --- | ---: | ---: | ---: | ---: |
+| "Wie viele Bundeslaender hat Deutschland?" | 0,92 s | 0,75 s | **1,67 s** | 6,06 s |
+| "Ist die Haustuer offen?" | 0,55 s | 0,63 s | **1,18 s** | 4,01 s |
+| "Nenne einen Vorteil von Fussbodenheizung." | 0,48 s | 0,61 s | **1,10 s** | 3,84 s |
+
+Die Rueck-Transkription bestaetigt, dass gesprochen wurde, was gemma geantwortet
+hat. Keine OOM-Meldungen, das LLM blieb auch unter TTS-Last ansprechbar.
+
+**Aber:** mit gemma-4-12B bleiben nur 0,32 GiB frei. Das reicht im Test, laesst
+aber keinen Spielraum -- eine VRAM-Spitze des Desktops oder ein zweiter Slot
+kann den Stack kippen. Wer LLM und TTS dauerhaft parallel faehrt, nimmt besser
+Qwen3.5-9B:
+
+```bash
+PORT=8080 ./start_llama_server.sh models/Qwen3.5-9B-Q4_K_M.gguf &
+./start_orpheus_de_server.sh &
+```
+
 ## Troubleshooting
 
 ### Loop antwortet nicht
