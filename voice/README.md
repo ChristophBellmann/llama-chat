@@ -532,7 +532,7 @@ Home Assistant wandelt die Ausgabe selbst nach MP3 (24 kHz mono, 96 kbps) und
 **cached sie**: derselbe Text loest keine zweite Synthese aus. Wer Messreihen
 faehrt, variiert den Text.
 
-### Obergrenze je Anfrage
+### Laenge langer Antworten
 
 Seit der Textsegmentierung gilt `n_predict` **je Segment**, nicht je Anfrage.
 Ein langer Text kann damit beliebig viel Audio erzeugen: eine erbetene
@@ -540,14 +540,20 @@ Geschichte ergab am 02.09.2026 **126 s Audio in 117 s Synthese**. Home Assistant
 hatte laengst aufgegeben, der Satellit blieb stumm, und die GPU rechnete
 weiter.
 
-`--max-audio-seconds` (Env `ORPHEUS_MAX_AUDIO_S`, Default 45) begrenzt das. Wird
-die Grenze erreicht, bricht der Server die Generierung ab statt nur die Ausgabe
-zu verwerfen -- im Test sank die Gesamtzeit dadurch von 19,3 s auf 8,5 s bei
-gleicher Ausgabe. Der Log meldet die Kuerzung.
+**Standardmaessig gibt es keine Obergrenze** -- lange Texte werden vollstaendig
+gesprochen. Das ist so gewollt: eine gekuerzte Antwort ist schlimmer als eine
+lange.
 
-Das ist ein Sicherheitsnetz, kein Betriebsmodus: Orpheus synthetisiert etwa in
-Echtzeit, eine Antwort von 30 s Laenge blockiert den Satelliten 30 s lang. Fuer
-lange Texte ist Piper die richtige Wahl.
+Wer doch begrenzen will, setzt `--max-audio-seconds` beziehungsweise
+`ORPHEUS_MAX_AUDIO_S` auf einen Wert > 0. Dann wird nicht nur die Ausgabe
+verworfen, sondern die Generierung abgebrochen und der GPU-Slot freigegeben; im
+Test mit Grenze 8 s sank die Gesamtzeit von 19,3 s auf 8,5 s bei gleicher
+Ausgabe.
+
+Zu bedenken bleibt: Orpheus synthetisiert etwa in Echtzeit. Eine Antwort von
+30 s Laenge belegt den Satelliten 30 s lang, und Home Assistant kann bei sehr
+langen Texten von sich aus aufgeben. Fuer Vorlesetexte ist Piper der ruhigere
+Weg.
 
 ### Vorsicht: das erste Wort
 

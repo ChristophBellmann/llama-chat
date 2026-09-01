@@ -108,11 +108,12 @@ class OrpheusHandler(AsyncEventHandler):
             await loop.run_in_executor(None, lambda: None)  # Executor vorwärmen
             task = loop.run_in_executor(None, produce)
 
-            # Obergrenze gegen Dauerlaeufer. Seit der Textsegmentierung gilt
-            # n_predict je Segment, ein langer Text kann also beliebig viel
-            # Audio erzeugen: eine erbetene Geschichte ergab 126 s Audio in
-            # 117 s Synthese, Home Assistant hatte laengst aufgegeben und der
-            # Satellit blieb stumm. Lieber gekuerzt sprechen als gar nicht.
+            # Standardmaessig ohne Obergrenze: lange Texte werden vollstaendig
+            # gesprochen. Seit der Textsegmentierung gilt n_predict je Segment,
+            # ein langer Text kann also beliebig viel Audio erzeugen -- eine
+            # erbetene Geschichte ergab 126 s Audio in 117 s Synthese. Wer das
+            # begrenzen will, setzt ORPHEUS_MAX_AUDIO_S; dann wird gekuerzt und
+            # die Generierung abgebrochen.
             max_samples = int(self.cli_args.max_audio_seconds * RATE)
             gekuerzt = False
 
@@ -182,8 +183,10 @@ async def main() -> None:
     parser.add_argument(
         "--max-audio-seconds",
         type=float,
-        default=float(os.environ.get("ORPHEUS_MAX_AUDIO_S", "45")),
-        help="Obergrenze je Anfrage; 0 schaltet sie ab",
+        default=float(os.environ.get("ORPHEUS_MAX_AUDIO_S", "0")),
+        help="Obergrenze je Anfrage in Sekunden. Standard 0 = keine Grenze, "
+        "lange Texte werden vollstaendig gesprochen. Ein Wert > 0 kuerzt und "
+        "bricht die Generierung ab.",
     )
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
