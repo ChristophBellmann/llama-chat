@@ -152,6 +152,25 @@ class OrpheusHandler(AsyncEventHandler):
                     )
             await task
 
+            # Der Satellit schneidet sonst das letzte Wort ab. Das Audio selbst
+            # ist vollstaendig -- gemessen endet es sauber in Stille --, aber der
+            # Player beendet die Wiedergabe ein Stueck vor dem Stream-Ende. Die
+            # natuerliche Ausklingzeit von rund 150 ms reicht als Puffer nicht.
+            tail_ms = max(0, int(self.cli_args.tail_silence_ms))
+            if tail_ms:
+                n_samples = int(RATE * tail_ms / 1000)
+                silence = b"\x00" * (n_samples * WIDTH * CHANNELS)
+                step = WIDTH * CHANNELS * self.cli_args.samples_per_chunk
+                for off in range(0, len(silence), step):
+                    await self.write_event(
+                        AudioChunk(
+                            audio=silence[off : off + step],
+                            rate=RATE,
+                            width=WIDTH,
+                            channels=CHANNELS,
+                        ).event()
+                    )
+
             await self.write_event(AudioStop().event())
             dur = total / (RATE * WIDTH * CHANNELS)
             _LOGGER.info(
@@ -180,6 +199,13 @@ async def main() -> None:
         "--completion-url", default="http://127.0.0.1:8082/completion"
     )
     parser.add_argument("--snac-device", default="cpu")
+    parser.add_argument(
+        "--tail-silence-ms",
+        type=int,
+        default=int(os.environ.get("ORPHEUS_TAIL_SILENCE_MS", "400")),
+        help="Stille am Ende jeder Antwort, damit der Satellit das letzte Wort "
+        "nicht abschneidet; 0 schaltet sie ab",
+    )
     parser.add_argument(
         "--max-audio-seconds",
         type=float,

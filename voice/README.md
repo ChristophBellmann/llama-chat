@@ -555,6 +555,24 @@ Zu bedenken bleibt: Orpheus synthetisiert etwa in Echtzeit. Eine Antwort von
 langen Texten von sich aus aufgeben. Fuer Vorlesetexte ist Piper der ruhigere
 Weg.
 
+### Das letzte Wort: Nachlauf-Stille
+
+Der Satellit schnitt anfangs das letzte Wort jeder Antwort ab. Die Ursache lag
+nicht im Audio: das WAV des Wyoming-Servers endet sauber in Stille, der
+RMS-Verlauf der letzten Fenster war `0.038 -> 0.006 -> 0.000`. Es bricht also
+nicht mitten im Ton ab, sondern der Player beendet die Wiedergabe ein Stueck vor
+dem Stream-Ende -- und die natuerliche Ausklingzeit von rund 150 ms reicht als
+Puffer nicht.
+
+Der Server haengt deshalb `--tail-silence-ms` (Env `ORPHEUS_TAIL_SILENCE_MS`,
+Default 400) an jede Antwort an, bevor `AudioStop` geht. Damit stehen rund
+500 ms Puffer zur Verfuegung; am AtomS3R kommt seither auch das letzte Wort an.
+`0` schaltet den Nachlauf ab.
+
+Wer denselben Effekt woanders sieht, prueft zuerst das WAV: endet es in Stille,
+ist das Audio vollstaendig und der Puffer zu klein. Bricht es mitten im Ton ab,
+liegt es an der Synthese.
+
 ### Vorsicht: das erste Wort
 
 Die bekannte Schwaeche des DE-Finetunes wird in Home Assistant
