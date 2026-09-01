@@ -19,6 +19,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 import time
 from functools import partial
 from pathlib import Path
@@ -80,20 +81,40 @@ class OrpheusHandler(AsyncEventHandler):
             loop = asyncio.get_running_loop()
             queue: asyncio.Queue = asyncio.Queue()
 
+            stop_event = threading.Event()
+
             def produce() -> None:
                 """Läuft im Thread: der Generator ist blockierendes HTTP + Torch."""
                 try:
                     import voice_app as va
 
                     os.environ["ORPHEUS_VOICE"] = voice
-                    for _sr, chunk in va.stream_orpheus_audio(text):
-                        loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                    gen = va.stream_orpheus_audio(text)
+                    try:
+                        for _sr, chunk in gen:
+                            if stop_event.is_set():
+                                break
+                            loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                    finally:
+                        # Schliesst den HTTP-Stream und gibt den GPU-Slot frei.
+                        # Ohne das rechnet das Modell nach dem Kuerzen weiter:
+                        # im Test 11 der 19 Sekunden fuer Audio, das niemand
+                        # mehr hoert.
+                        gen.close()
                     loop.call_soon_threadsafe(queue.put_nowait, None)
                 except Exception as err:  # an den Event-Loop weiterreichen
                     loop.call_soon_threadsafe(queue.put_nowait, err)
 
             await loop.run_in_executor(None, lambda: None)  # Executor vorwärmen
             task = loop.run_in_executor(None, produce)
+
+            # Obergrenze gegen Dauerlaeufer. Seit der Textsegmentierung gilt
+            # n_predict je Segment, ein langer Text kann also beliebig viel
+            # Audio erzeugen: eine erbetene Geschichte ergab 126 s Audio in
+            # 117 s Synthese, Home Assistant hatte laengst aufgegeben und der
+            # Satellit blieb stumm. Lieber gekuerzt sprechen als gar nicht.
+            max_samples = int(self.cli_args.max_audio_seconds * RATE)
+            gekuerzt = False
 
             first = None
             total = 0
@@ -103,6 +124,17 @@ class OrpheusHandler(AsyncEventHandler):
                     break
                 if isinstance(item, BaseException):
                     raise item
+                if max_samples and total // (WIDTH * CHANNELS) >= max_samples:
+                    if not gekuerzt:
+                        _LOGGER.warning(
+                            "Obergrenze von %.0fs erreicht, Generierung "
+                            "abgebrochen (Text war %d Zeichen)",
+                            self.cli_args.max_audio_seconds,
+                            len(text),
+                        )
+                        gekuerzt = True
+                        stop_event.set()
+                    continue
                 if first is None:
                     first = time.perf_counter() - t0
                 pcm = (np.clip(item, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
@@ -122,8 +154,9 @@ class OrpheusHandler(AsyncEventHandler):
             await self.write_event(AudioStop().event())
             dur = total / (RATE * WIDTH * CHANNELS)
             _LOGGER.info(
-                "fertig: %.2fs Audio, erster Chunk nach %.2fs, gesamt %.2fs",
+                "fertig: %.2fs Audio%s, erster Chunk nach %.2fs, gesamt %.2fs",
                 dur,
+                " (gekuerzt)" if gekuerzt else "",
                 first if first is not None else -1.0,
                 time.perf_counter() - t0,
             )
@@ -146,6 +179,12 @@ async def main() -> None:
         "--completion-url", default="http://127.0.0.1:8082/completion"
     )
     parser.add_argument("--snac-device", default="cpu")
+    parser.add_argument(
+        "--max-audio-seconds",
+        type=float,
+        default=float(os.environ.get("ORPHEUS_MAX_AUDIO_S", "45")),
+        help="Obergrenze je Anfrage; 0 schaltet sie ab",
+    )
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 

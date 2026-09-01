@@ -532,6 +532,23 @@ Home Assistant wandelt die Ausgabe selbst nach MP3 (24 kHz mono, 96 kbps) und
 **cached sie**: derselbe Text loest keine zweite Synthese aus. Wer Messreihen
 faehrt, variiert den Text.
 
+### Obergrenze je Anfrage
+
+Seit der Textsegmentierung gilt `n_predict` **je Segment**, nicht je Anfrage.
+Ein langer Text kann damit beliebig viel Audio erzeugen: eine erbetene
+Geschichte ergab am 02.09.2026 **126 s Audio in 117 s Synthese**. Home Assistant
+hatte laengst aufgegeben, der Satellit blieb stumm, und die GPU rechnete
+weiter.
+
+`--max-audio-seconds` (Env `ORPHEUS_MAX_AUDIO_S`, Default 45) begrenzt das. Wird
+die Grenze erreicht, bricht der Server die Generierung ab statt nur die Ausgabe
+zu verwerfen -- im Test sank die Gesamtzeit dadurch von 19,3 s auf 8,5 s bei
+gleicher Ausgabe. Der Log meldet die Kuerzung.
+
+Das ist ein Sicherheitsnetz, kein Betriebsmodus: Orpheus synthetisiert etwa in
+Echtzeit, eine Antwort von 30 s Laenge blockiert den Satelliten 30 s lang. Fuer
+lange Texte ist Piper die richtige Wahl.
+
 ### Vorsicht: das erste Wort
 
 Die bekannte Schwaeche des DE-Finetunes wird in Home Assistant
