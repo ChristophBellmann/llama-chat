@@ -3,8 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$ROOT_DIR/env.local.sh"
-BIN_DIR="$ROOT_DIR/llama.cpp/build/bin"
-MODEL_PATH="$ROOT_DIR/models/Qwen3.5-9B-Q4_K_M.gguf"
+# Build-Verzeichnis. Standard ist b10741 -- zwingend fuer gemma-4 (arch "gemma4")
+# und Dirk-Qwen3.8-27B (MTP-Layer). Der alte Build (Tag working-2026-03-04)
+# kennt beide nicht und ist als Rueckfallebene weiter da:
+#   LLAMA_BIN_DIR="$ROOT_DIR/llama.cpp/build/bin" ./start_llama_server.sh
+BIN_DIR="${LLAMA_BIN_DIR:-$ROOT_DIR/llama.cpp-b10741/build/bin}"
+MODEL_PATH="$ROOT_DIR/models/gemma-4-12B-it-qat-UD-Q4_K_XL.gguf"
 MODEL_ALIAS="${MODEL_ALIAS:-locales_llm}"
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8080}"
@@ -16,6 +20,10 @@ FLASH_ATTN="${FLASH_ATTN:-on}"
 BATCH_SIZE="${BATCH_SIZE:-2048}"
 UBATCH_SIZE="${UBATCH_SIZE:-512}"
 PARALLEL="${PARALLEL:-2}"
+REASONING_BUDGET="${REASONING_BUDGET:-0}"
+# --reasoning-budget ist bei den qwen35-Modellen wirkungslos (getestet auf b10741:
+# 5,2 s mit und ohne, content teils leer). Nur das hier schaltet Thinking wirklich ab.
+CHAT_TEMPLATE_KWARGS="${CHAT_TEMPLATE_KWARGS:-{\"enable_thinking\":false\}}"
 LONG_CONTEXT="${LONG_CONTEXT:-0}"
 ROPE_SCALING="${ROPE_SCALING:-yarn}"
 ROPE_SCALE="${ROPE_SCALE:-2.0}"
@@ -122,6 +130,11 @@ while [[ $# -gt 0 ]]; do
       PARALLEL="$2"
       shift 2
       ;;
+    --reasoning-budget)
+      [[ $# -ge 2 ]] || { echo "Fehler: --reasoning-budget erwartet 0 oder -1" >&2; exit 1; }
+      REASONING_BUDGET="$2"
+      shift 2
+      ;;
     --)
       shift
       break
@@ -159,6 +172,8 @@ echo "  ngl:   $GPU_LAYERS"
 echo "  fa:    $FLASH_ATTN"
 echo "  batch: $BATCH_SIZE / $UBATCH_SIZE"
 echo "  slots: $PARALLEL"
+echo "  think: $CHAT_TEMPLATE_KWARGS"
+echo "  (--reasoning-budget $REASONING_BUDGET wirkt nur bei gemma, nicht bei qwen35)"
 echo "  slot ctx: $((CTX / PARALLEL))"
 echo "  ctk:   $CACHE_TYPE_K"
 echo "  ctv:   $CACHE_TYPE_V"
@@ -180,6 +195,8 @@ ARGS=(
   -ctv "$CACHE_TYPE_V"
   --jinja
   --parallel "$PARALLEL"
+  --reasoning-budget "$REASONING_BUDGET"
+  --chat-template-kwargs "$CHAT_TEMPLATE_KWARGS"
 )
 
 if [[ "$LONG_CONTEXT" == "1" ]]; then

@@ -69,6 +69,57 @@ def play_audio(sr: int, audio: np.ndarray) -> None:
     sd.play(audio, samplerate=sr, blocking=True)
 
 
+def play_audio_stream(chunks, prebuffer_s: float = 0.6):
+    """Spielt Audio-Chunks ab, waehrend sie noch erzeugt werden.
+
+    Sammelt erst prebuffer_s Sekunden als Polster (die Generierung liegt nur
+    knapp ueber Echtzeit, ohne Polster gaebe es Aussetzer) und schiebt danach
+    jeden Chunk direkt in den Ausgabestrom.
+
+    Rueckgabe: (sample_rate, gesamtes Audio, Sekunden bis zum ersten Ton)
+    """
+    t0 = time.perf_counter()
+    sr = 24000
+    pre: list[np.ndarray] = []
+    collected: list[np.ndarray] = []
+    stream = None
+    first_sound = None
+    pre_samples = 0
+
+    try:
+        for csr, chunk in chunks:
+            sr = csr
+            chunk = np.asarray(chunk, dtype=np.float32).reshape(-1)
+            if not chunk.size:
+                continue
+            collected.append(chunk)
+            if stream is None:
+                pre.append(chunk)
+                pre_samples += chunk.size
+                if pre_samples < int(prebuffer_s * sr):
+                    continue
+                stream = sd.OutputStream(samplerate=sr, channels=1, dtype="float32")
+                stream.start()
+                first_sound = time.perf_counter() - t0
+                for c in pre:
+                    stream.write(c)
+                pre = []
+            else:
+                stream.write(chunk)
+        if stream is None and pre:
+            # Zu kurz fuers Polster -- am Stueck abspielen.
+            audio = np.concatenate(pre)
+            first_sound = time.perf_counter() - t0
+            sd.play(audio, samplerate=sr, blocking=True)
+    finally:
+        if stream is not None:
+            stream.stop()
+            stream.close()
+
+    audio = np.concatenate(collected) if collected else np.zeros(0, dtype=np.float32)
+    return sr, audio, (first_sound if first_sound is not None else 0.0)
+
+
 # -----------------------------------------------------------------------------
 # Piper TTS
 # -----------------------------------------------------------------------------
@@ -137,6 +188,9 @@ def synthesize_piper(text: str) -> tuple[int, np.ndarray]:
 
 def orpheus_prompt(text: str, voice: Optional[str] = None) -> str:
     voice = voice or os.environ.get("ORPHEUS_VOICE", "jana")
+    # Vollformat mit BOS und EOT. Die Kurzform ohne <|begin_of_text|>/<|eot_id|>
+    # war auf dem DE-Finetune messbar schlechter: verstuemmelter Satzanfang und
+    # kein Stopp (3/3 Laeufe, siehe ./voice/tts_check.sh).
     return (
         f"<custom_token_3><|begin_of_text|>"
         f"{voice}: {text.strip()}"
@@ -172,6 +226,8 @@ def custom_token_to_code(token_text: str, index: int) -> Optional[int]:
         return None
     raw = int(m.group(1))
     code = raw - 10 - ((index % 7) * 4096)
+    # 0 ist ein gueltiger SNAC-Code. Wird er verworfen, zaehlt audio_index nicht
+    # weiter und alle folgenden Slot-Offsets verschieben sich -> Rest faellt weg.
     if code < 0 or code > 4095:
         return None
     return code
@@ -183,10 +239,12 @@ def extract_custom_tokens(text: str) -> list[str]:
 
 def token_text_to_codes(text: str) -> list[int]:
     codes: list[int] = []
-    for idx, m in enumerate(CUSTOM_RE.finditer(text)):
-        code = custom_token_to_code(m.group(0), idx)
+    audio_index = 0
+    for m in CUSTOM_RE.finditer(text):
+        code = custom_token_to_code(m.group(0), audio_index)
         if code is not None:
             codes.append(code)
+            audio_index += 1
     return codes
 
 
@@ -244,6 +302,114 @@ def decode_snac_codes(codes: list[int]) -> tuple[int, np.ndarray]:
 
     audio = audio_hat.detach().cpu().numpy().reshape(-1).astype(np.float32)
     return 24000, np.clip(audio, -1.0, 1.0)
+
+
+def _snac_decode_frames(codes: list[int]) -> np.ndarray:
+    """Rohes SNAC-Decoding ohne Mindestlaenge -- fuer den Streaming-Pfad."""
+    n = (len(codes) // 7) * 7
+    codes = codes[:n]
+    if not n:
+        return np.zeros(0, dtype=np.float32)
+
+    device = os.environ.get("SNAC_DEVICE", "cpu").strip() or "cpu"
+    torch, model = _get_snac_model(device)
+
+    c0: list[int] = []
+    c1: list[int] = []
+    c2: list[int] = []
+    for j in range(n // 7):
+        i = 7 * j
+        c0.append(codes[i])
+        c1.extend([codes[i + 1], codes[i + 4]])
+        c2.extend([codes[i + 2], codes[i + 3], codes[i + 5], codes[i + 6]])
+
+    tensors = [
+        torch.tensor(c0, device=device, dtype=torch.int32).unsqueeze(0),
+        torch.tensor(c1, device=device, dtype=torch.int32).unsqueeze(0),
+        torch.tensor(c2, device=device, dtype=torch.int32).unsqueeze(0),
+    ]
+    for t in tensors:
+        if torch.any(t < 0) or torch.any(t > 4095):
+            raise RuntimeError("SNAC code außerhalb 0..4095")
+    with torch.inference_mode():
+        audio_hat = model.decode(tensors)
+    audio = audio_hat.detach().cpu().numpy().reshape(-1).astype(np.float32)
+    return np.clip(audio, -1.0, 1.0)
+
+
+def stream_orpheus_audio(text: str):
+    """Generator: liefert Audio-Chunks, waehrend das Modell noch generiert.
+
+    Ohne Streaming wartet der Aufrufer auf die komplette Generierung (~6-7 s fuer
+    einen Satz) bevor der erste Ton kommt. Hier wird alle ORPHEUS_STREAM_FRAMES
+    Frames dekodiert und ausgegeben, mit einem Frame Kontext nach links gegen
+    Blockgrenzen-Artefakte.
+
+    Yields: (sample_rate, chunk)
+    """
+    url = os.environ.get("ORPHEUS_COMPLETION_URL", "http://127.0.0.1:8082/completion")
+    payload = {
+        "prompt": orpheus_prompt(text),
+        "n_predict": int(os.environ.get("ORPHEUS_TTS_N_PREDICT", "600")),
+        "temperature": float(os.environ.get("ORPHEUS_TTS_TEMP", "0.6")),
+        "top_p": float(os.environ.get("ORPHEUS_TTS_TOP_P", "0.9")),
+        "repeat_penalty": float(os.environ.get("ORPHEUS_TTS_REPEAT_PENALTY", "1.1")),
+        "stream": True,
+        "cache_prompt": True,
+        "special": True,
+        "ignore_eos": os.environ.get("ORPHEUS_IGNORE_EOS", "0") == "1",
+    }
+    block = max(1, int(os.environ.get("ORPHEUS_STREAM_FRAMES", "7")))
+    ctx_frames = 1
+    samples_per_frame = 2048
+
+    codes: list[int] = []
+    audio_index = 0
+    emitted_frames = 0
+    buf = ""
+
+    r = _HTTP.post(url, json=payload, stream=True,
+                   timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "240")))
+    r.raise_for_status()
+
+    def flush(final: bool = False):
+        nonlocal emitted_frames
+        total = len(codes) // 7
+        while total - emitted_frames >= (block if not final else 1):
+            take = block if (total - emitted_frames) >= block else (total - emitted_frames)
+            start = max(0, emitted_frames - ctx_frames)
+            lead = emitted_frames - start
+            window = codes[start * 7:(emitted_frames + take) * 7]
+            audio = _snac_decode_frames(window)
+            if lead:
+                audio = audio[lead * samples_per_frame:]
+            emitted_frames += take
+            if audio.size:
+                yield 24000, audio
+            if final and total - emitted_frames <= 0:
+                break
+
+    for raw in r.iter_lines(decode_unicode=True):
+        if not raw:
+            continue
+        line = raw[6:] if raw.startswith("data: ") else raw
+        try:
+            chunk = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        piece = chunk.get("content") or ""
+        if piece:
+            buf += piece
+            for m in CUSTOM_RE.finditer(buf):
+                code = custom_token_to_code(m.group(0), audio_index)
+                if code is not None:
+                    codes.append(code)
+                    audio_index += 1
+            buf = buf[buf.rfind(">") + 1:] if ">" in buf else buf
+            yield from flush()
+        if chunk.get("stop"):
+            break
+    yield from flush(final=True)
 
 
 def generate_orpheus_tokens_cli(text: str) -> str:
@@ -305,9 +471,12 @@ def generate_orpheus_tokens_server(text: str) -> str:
         "top_p": float(os.environ.get("ORPHEUS_TTS_TOP_P", "0.9")),
         "repeat_penalty": float(os.environ.get("ORPHEUS_TTS_REPEAT_PENALTY", "1.1")),
         "stream": False,
-        "cache_prompt": False,
+        "cache_prompt": True,
         "special": True,
-        "ignore_eos": True,
+        # ignore_eos=True zwang das Modell, immer n_predict Tokens zu erzeugen --
+        # auch fuer einen Halbsatz. Mit dem Vollformat-Prompt (<|eot_id|>) stoppt
+        # es selbst, sobald der Satz gesprochen ist.
+        "ignore_eos": os.environ.get("ORPHEUS_IGNORE_EOS", "0") == "1",
     }
     r = _HTTP.post(url, json=payload, timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "240")))
     if os.environ.get("ORPHEUS_VERBOSE", "0") == "1":
@@ -631,9 +800,30 @@ def synthesize(text: str, tts: str) -> tuple[str, int, np.ndarray]:
 def cmd_tts(args: argparse.Namespace) -> int:
     text = " ".join(args.text).strip() or "Die Haustür ist noch offen."
     t0 = time.perf_counter()
+
+    # Orpheus generiert nur knapp schneller als Echtzeit. Am Stueck zu warten
+    # kostet ~6 s Stille vor dem ersten Ton; gestreamt sind es ~0,6 s.
+    use_stream = (args.tts == "orpheus-server" and not args.no_stream and not args.output)
+    if use_stream:
+        sr, audio, first = play_audio_stream(stream_orpheus_audio(text))
+        print(f"Orpheus-Server (stream): {len(audio)/sr:.2f}s Audio, sr={sr}, "
+              f"erster Ton nach {first:.2f}s, gesamt {time.perf_counter()-t0:.2f}s", flush=True)
+        return 0
+
     name, sr, audio = synthesize(text, args.tts)
     print(f"{name}: {len(audio)/sr:.2f}s Audio, sr={sr}, synth={time.perf_counter()-t0:.2f}s", flush=True)
-    play_audio(sr, audio)
+    if args.output:
+        out = Path(args.output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(out), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(sr)
+            pcm = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16)
+            wav.writeframes(pcm.tobytes())
+        print(f"written: {out}", flush=True)
+    else:
+        play_audio(sr, audio)
     return 0
 
 
@@ -667,8 +857,14 @@ def cmd_loop(args: argparse.Namespace) -> int:
             print(f"Du: {text}", flush=True)
             answer = make_reply(args.reply, text)
             print(f"Antwort: {answer}", flush=True)
-            _, sr, out = synthesize(answer, args.tts)
-            play_audio(sr, out)
+            t_speak = time.perf_counter()
+            if args.tts == "orpheus-server" and not args.no_stream:
+                _, _, first = play_audio_stream(stream_orpheus_audio(answer))
+                print(f"  (erster Ton nach {first:.2f}s, "
+                      f"gesamt {time.perf_counter()-t_speak:.2f}s)", flush=True)
+            else:
+                _, sr, out = synthesize(answer, args.tts)
+                play_audio(sr, out)
         except KeyboardInterrupt:
             print("\nBeendet.", flush=True)
             return 0
@@ -690,12 +886,17 @@ def main() -> int:
 
     t = sub.add_parser("tts")
     t.add_argument("--tts", choices=["piper", "orpheus", "orpheus-server", "neutts"], default=os.environ.get("VOICE_TTS", "neutts"))
+    t.add_argument("--output", "-o", help="WAV-Datei schreiben statt direkt abzuspielen")
+    t.add_argument("--no-stream", action="store_true",
+                   help="Orpheus am Stueck erzeugen statt gestreamt (langsamer bis zum ersten Ton)")
     t.add_argument("text", nargs="*")
     t.set_defaults(func=cmd_tts)
 
     l = sub.add_parser("loop")
     l.add_argument("--reply", choices=["echo", "static", "llama"], default="echo")
     l.add_argument("--tts", choices=["piper", "orpheus", "orpheus-server", "neutts"], default=os.environ.get("VOICE_TTS", "neutts"))
+    l.add_argument("--no-stream", action="store_true",
+                   help="Orpheus am Stueck erzeugen statt gestreamt")
     l.set_defaults(func=cmd_loop)
 
     s = sub.add_parser("smoke")

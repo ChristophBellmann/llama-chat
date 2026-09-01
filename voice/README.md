@@ -360,8 +360,101 @@ PIPER_CONFIG=/pfad/model.onnx.json
 - Server müssen persistent laufen. Keine Modell-Ladevorgänge im Loop.
 - Orpheus-TTS über `llama-server /completion` verwenden, nicht pro Aufruf über `llama-completion` neu laden.
 - `SNAC_DEVICE=cpu` gesetzt lassen. SNAC auf ROCm war instabil.
+- Auf RX 6700 XT `HSA_OVERRIDE_GFX_VERSION=10.3.1` verwenden. `10.3.0` kann Orpheus/llama.cpp als `gfx1030` starten und instabil werden.
 - `WHISPER_MODEL=small` ist ein guter erster Kompromiss. Für bessere Erkennung `medium` testen.
 - `LLAMA_MAX_TOKENS=80` begrenzt Antwortlänge und Latenz.
+
+## Orpheus-DE lokal
+
+GPU-Server starten:
+
+```bash
+cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+./start_orpheus_de_server.sh
+```
+
+WAV-Datei erzeugen:
+
+```bash
+ORPHEUS_COMPLETION_URL=http://127.0.0.1:8082/completion \
+SNAC_DEVICE=cpu \
+./voice/run.sh tts --tts orpheus-server \
+  -o /tmp/orpheus_de_test.wav \
+  "Lineare Regression beschreibt den Zusammenhang zwischen Merkmalen und Zielwert."
+```
+
+Getestet: `3b-de-ft-research_release-q4_k_m.gguf`, `GPU_LAYERS=-1`, `gfx1031`, `torch==2.5.1+cpu` für SNAC.
+Stimme: `jana` (Default). `julia` kennt das Finetune **nicht** -- der Name wird dann vorgelesen.
+
+## TTS vergleichen und nachmessen
+
+`./voice/tts_check.sh` synthetisiert, misst cold/warm getrennt, schreibt WAVs und
+**transkribiert sie zurueck**. Ohne die Rueck-Transkription faellt nicht auf, wenn
+ein Backend zwar Audio liefert, aber den falschen Text spricht.
+
+```bash
+./voice/tts_check.sh                                   # alle Backends, 3 Laeufe
+./voice/tts_check.sh --tts piper --runs 5 "Mein Text"
+./voice/tts_check.sh --tts orpheus-server --no-transcribe
+```
+
+Messung vom 01.09.2026, RX 6700 XT, SNAC auf CPU, Satz mit 4,4 s Sprechdauer:
+
+| Backend | cold | warm | RTF warm | Text-Treue |
+| --- | ---: | ---: | ---: | ---: |
+| `piper` | 2,08 s | 2,43 s | 0,57 | 0,74 |
+| `orpheus-server` (am Stueck) | 12,2 s | 6,66 s | 1,50 | 0,89 |
+| `neutts` | -- | -- | -- | nicht installiert |
+
+**Der Cache hilft Orpheus nicht.** Die Zeit geht zu ~78 % in die autoregressive
+Token-Generierung des 3B-Modells (400-600 SNAC-Tokens pro Satz), nur ~22 % in den
+SNAC-Decode. Warm ist praktisch so langsam wie cold.
+
+## Orpheus in Echtzeit: Streaming
+
+Am Stueck erzeugt braucht Orpheus ~6,7 s, bevor der erste Ton kommt. Der
+Streaming-Pfad (`stream_orpheus_audio` + `play_audio_stream`) dekodiert dagegen
+alle 7 Frames und spielt sofort ab:
+
+| Satz | 1. Ton | gesamt | Audio | Puffer |
+| --- | ---: | ---: | ---: | ---: |
+| kurz (1,5-1,7 s) | 0,60-0,73 s | 1,8-2,0 s | 1,5-1,7 s | +0,18 s |
+| mittel (2,8-3,7 s) | 0,60-0,62 s | 2,9-3,6 s | 2,8-3,7 s | +0,57 s |
+| lang (6,7-6,8 s) | 0,61-0,62 s | 6,3-6,5 s | 6,7-6,8 s | +0,93 s |
+
+Die Zeit bis zum ersten Ton ist unabhaengig von der Satzlaenge ~0,6 s, und der
+Puffer bleibt immer positiv -- die Generierung bleibt der Wiedergabe voraus, es
+gibt keine Aussetzer. Bei laengeren Saetzen waechst der Vorsprung sogar.
+
+Streaming ist Default fuer `--tts orpheus-server`; mit `--no-stream` bekommt man
+das alte Verhalten:
+
+```bash
+./start_orpheus_de_server.sh                     # Port 8082
+./voice/run.sh tts --tts orpheus-server "Die Haustuer ist noch offen."
+./voice/run.sh loop --reply llama --tts orpheus-server
+```
+
+Stellschrauben: `ORPHEUS_STREAM_FRAMES` (Frames pro Decode-Block, Default 7 --
+kleiner = frueherer Ton, mehr CPU-Last) und das Polster in `play_audio_stream`
+(Default 0,6 s).
+
+### Was vorher gebremst hat
+
+Zwei Einstellungen im Completion-Request waren die eigentlichen Blocker:
+
+- `"ignore_eos": True` zwang das Modell, **immer** `n_predict` Tokens zu erzeugen,
+  auch fuer einen Halbsatz. Jetzt Default aus (`ORPHEUS_IGNORE_EOS=1` schaltet es
+  zurueck). Zusammen mit dem Vollformat-Prompt sank die Audiolaenge fuer denselben
+  Satz von 6,1-7,3 s auf 4,1-5,0 s -- das Nachlabern am Satzende war weg.
+- `"stream": False` liess den Aufrufer auf die komplette Generierung warten.
+
+### Bekannte Einschraenkung
+
+Das **erste Wort** einer Aeusserung ist mit diesem DE-Finetune unzuverlaessig
+("Lineare" wurde als "Leere", "Lineale", "Linaere", "Die in Jahre" gesprochen).
+Das tritt gestreamt wie ungestreamt auf, ist also keine Folge des Streamings.
+Wer das umgehen will, stellt der Antwort ein kurzes Fuellwort voran.
 
 ## Troubleshooting
 

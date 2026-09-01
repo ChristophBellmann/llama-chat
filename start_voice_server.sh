@@ -13,6 +13,7 @@ CTX="${CTX:-8192}"
 GPU_LAYERS="${GPU_LAYERS:--1}"
 CACHE_TYPE_K="${CACHE_TYPE_K:-q8_0}"
 CACHE_TYPE_V="${CACHE_TYPE_V:-q8_0}"
+PARALLEL="${PARALLEL:-}"
 
 if [[ ! -x "$BIN_DIR/llama-server" ]]; then
   echo "Fehler: llama-server nicht gefunden unter $BIN_DIR/llama-server" >&2
@@ -35,6 +36,9 @@ echo "  ctx:   $CTX"
 echo "  ngl:   $GPU_LAYERS"
 echo "  ctk:   $CACHE_TYPE_K"
 echo "  ctv:   $CACHE_TYPE_V"
+if [[ -n "$PARALLEL" ]]; then
+  echo "  np:    $PARALLEL"
+fi
 
 ARGS=(
   -m "$MODEL_PATH"
@@ -47,5 +51,9 @@ ARGS=(
   -ctv "$CACHE_TYPE_V"
   --jinja
 )
+
+if [[ -n "$PARALLEL" ]]; then
+  ARGS+=(--parallel "$PARALLEL")
+fi
 
 exec "$BIN_DIR/llama-server" "${ARGS[@]}"

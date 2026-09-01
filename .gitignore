@@ -81,3 +81,9 @@ venv/
 *.log
 *.tmp
 *.bak*
+
+# Zweiter llama.cpp-Build (git worktree, Tag b10741) fuer Qwen3.8-27B
+llama.cpp-b10741/
+
+# Ausgabe von voice/tts_check.sh
+voice/tts_check_out/

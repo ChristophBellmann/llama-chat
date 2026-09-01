@@ -47,7 +47,7 @@ runtime_env() {
     export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
     export HSA_PATH="${HSA_PATH:-$ROCM_PATH}"
     export HIP_PLATFORM="${HIP_PLATFORM:-amd}"
-    export HSA_OVERRIDE_GFX_VERSION="${HSA_OVERRIDE_GFX_VERSION:-10.3.0}"
+    export HSA_OVERRIDE_GFX_VERSION="${HSA_OVERRIDE_GFX_VERSION:-10.3.1}"
     export PATH="$ROCM_PATH/bin:$ROCM_PATH/lib/llvm/bin:$ROCM_PATH/llvm/bin:${PATH:-}"
     export LD_LIBRARY_PATH="$ROOT_DIR/llama.cpp/build/bin:$ROCM_PATH/lib:$ROCM_PATH/lib64:$ROCM_PATH/lib/host-math/lib:$ROCM_PATH/lib/rocm_sysdeps/lib:$ROCM_PATH/lib/llvm/lib:$ROCM_PATH/llvm/lib:${LD_LIBRARY_PATH:-}"
     if [[ -e "$ROCM_PATH/lib/llvm/lib/libomp.so" ]]; then
