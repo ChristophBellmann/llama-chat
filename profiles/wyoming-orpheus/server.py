@@ -76,6 +76,7 @@ class OrpheusHandler(AsyncEventHandler):
         self._stream_started = False
         self._stream_t0 = 0.0
         self._stream_samples = 0
+        self._streaming_session = False
 
     async def _spreche(self, text: str, voice: str) -> None:
         """Synthetisiert einen Textabschnitt und schiebt ihn sofort raus."""
@@ -161,6 +162,15 @@ class OrpheusHandler(AsyncEventHandler):
                 return
         try:
             await self.write_event(AudioStop().event())
+            if self._streaming_session:
+                # Home Assistant beendet seine Leseschleife ausschliesslich bei
+                # SynthesizeStopped (components/wyoming/tts.py: "All TTS audio
+                # has been received"). AudioStop allein ignoriert es und liest
+                # endlos weiter -- der Player bleibt in "playing", announce
+                # laeuft in seinen Timeout und das Geraet verklemmt.
+                from wyoming.tts import SynthesizeStopped
+
+                await self.write_event(SynthesizeStopped().event())
         except (ConnectionError, BrokenPipeError, RuntimeError):
             pass
         self._stream_started = False
@@ -189,6 +199,7 @@ class OrpheusHandler(AsyncEventHandler):
             self._stream_started = False
             self._stream_t0 = time.perf_counter()
             self._stream_samples = 0
+            self._streaming_session = True
             _LOGGER.info("Stream-Synthese beginnt (%s)", self._stream_voice)
             return True
 
@@ -207,6 +218,7 @@ class OrpheusHandler(AsyncEventHandler):
                 await self._spreche(self._stream_buffer.strip(), self._stream_voice)
                 self._stream_buffer = ""
             await self._nachlauf_und_stop()
+            self._streaming_session = False
             _LOGGER.info(
                 "Stream fertig: %.2fs Audio, gesamt %.2fs",
                 self._stream_samples / RATE,
@@ -215,6 +227,16 @@ class OrpheusHandler(AsyncEventHandler):
             return True
 
         if not Synthesize.is_type(event.type):
+            return True
+
+        # HA schickt nach den Chunks zusaetzlich den kompletten Text als
+        # Synthesize -- ausdruecklich "for backwards compatibility" fuer Server
+        # ohne Streaming (homeassistant/components/wyoming/tts.py). Wer den als
+        # neuen Auftrag behandelt, synthetisiert alles ein zweites Mal und
+        # schickt mittendrin ein AudioStop: der Strom endet dann nie, der Player
+        # bleibt in "playing" und das Geraet verklemmt bis zum Neustart.
+        if self._streaming_session:
+            _LOGGER.debug("Synthesize waehrend Stream-Sitzung ignoriert")
             return True
 
         synthesize = Synthesize.from_event(event)
@@ -433,13 +455,13 @@ async def main() -> None:
                 # MAX_FETCHING_HEADER_ATTEMPTS * CONNECTION_TIMEOUT_MS), lange
                 # Antworten wurden dadurch abgeschnitten. Mit dem Flag nutzt HA
                 # async_stream_tts_audio und reicht Text wie Audio laufend durch.
-                # VORERST AUS. Mit True nutzt HA async_stream_tts_audio und
-                # liefert die ersten Bytes nach 4,6 s statt 15,1 s -- aber die
-                # HTTP-Antwort an den Satelliten wird dann nicht geschlossen:
-                # Player bleibt in "playing", assist_satellite in "responding",
-                # announce laeuft in seinen Timeout. Erst klaeren, wie HA das
-                # Stream-Ende erwartet, dann wieder einschalten.
-                supports_synthesize_streaming=False,
+                # Ohne dieses Flag puffert Home Assistant die komplette
+                # Synthese, bevor der Satellit das erste Byte bekommt (gemessen
+                # erste Bytes nach 15,1 s bei 15,17 s Gesamtdauer). Der AtomS3R
+                # bricht aber nach 30 s ohne Daten ab, lange Antworten wurden
+                # dadurch gekappt. Mit dem Flag nutzt HA async_stream_tts_audio
+                # und reicht Text wie Audio laufend durch.
+                supports_synthesize_streaming=True,
             )
         ],
     )

@@ -555,6 +555,40 @@ Zu bedenken bleibt: Orpheus synthetisiert etwa in Echtzeit. Eine Antwort von
 langen Texten von sich aus aufgeben. Fuer Vorlesetexte ist Piper der ruhigere
 Weg.
 
+### Warum lange Antworten abgeschnitten wurden
+
+Der Satellit kappte jede Antwort, deren Synthese laenger als rund 30 s dauerte.
+Die Ursachenkette:
+
+1. Der Wyoming-Server streamt Audio ab 0,7 s -- das war nie das Problem.
+2. **Home Assistant pufferte die komplette Synthese**, bevor es dem Satelliten
+   das erste Byte gab. Gemessen: erste Bytes nach 15,1 s bei 15,17 s
+   Gesamtdauer.
+3. Der AtomS3R bricht nach 30 s **ohne empfangene Daten** ab. Der Wert steht in
+   ESPHomes `audio_reader.cpp`: `MAX_FETCHING_HEADER_ATTEMPTS` (6) *
+   `CONNECTION_TIMEOUT_MS` (5000).
+
+HA hat dafuer `async_stream_tts_audio`, aktiviert es aber nur, wenn der Server
+`supports_synthesize_streaming` meldet. Beim Einbau waren zwei Fallstricke zu
+umgehen, beide fuehren sonst zu einem nie endenden Strom und einem Geraet, das
+bis zum Neustart in `responding` haengt:
+
+- HA schickt nach den `SynthesizeChunk`-Events **zusaetzlich den kompletten Text
+  als `Synthesize`** -- ausdruecklich "for backwards compatibility". Wer den als
+  neuen Auftrag behandelt, synthetisiert alles doppelt und schickt mittendrin
+  ein `AudioStop`. Waehrend einer Stream-Sitzung wird das Event ignoriert.
+- HA beendet seine Leseschleife **ausschliesslich bei `SynthesizeStopped`**
+  ("All TTS audio has been received"), nicht bei `AudioStop`. Fehlt es, liest HA
+  endlos weiter.
+
+Ergebnis nach dem Umbau: erste Bytes nach 4,3 s statt 15,1 s, und eine Antwort
+von 35,84 s Audio laeuft in 33,10 s vollstaendig durch -- vorher war bei 30 s
+Schluss.
+
+Der Text wird abschnittsweise ab 140 Zeichen synthetisiert. Satzweise waere
+frueher zu hoeren, kostet aber pro Request Prompt-Verarbeitung: ein Testtext aus
+vierzehn Kurzsaetzen brauchte satzweise 51,5 s fuer 27,5 s Audio.
+
 ### Das letzte Wort: Nachlauf-Stille
 
 Der Satellit schnitt anfangs das letzte Wort jeder Antwort ab. Die Ursache lag
