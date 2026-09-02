@@ -17,6 +17,7 @@ import argparse
 import asyncio
 import logging
 import os
+import re
 import signal
 import sys
 import threading
@@ -45,18 +46,173 @@ CHANNELS = 1
 VOICES = ["jana", "thomas"]
 
 
+_SATZ_ENDE = re.compile(r"(?<=[.!?:;])\s+")
+
+
+def _naechster_satz(buffer: str, min_chars: int = 140) -> tuple[str | None, str]:
+    """Schneidet den ersten Abschnitt ab, der lang genug zum Synthetisieren ist.
+
+    Nicht jeder Satz einzeln: jeder Request kostet Prompt-Verarbeitung, und bei
+    kurzen Saetzen dominiert die. Ein Testtext aus vierzehn Kurzsaetzen brauchte
+    satzweise 51,5 s fuer 27,5 s Audio. Gesammelt wird deshalb bis
+    ``min_chars``, dann bis zum naechsten Satzende -- so bleibt der erste Ton
+    frueh und der Durchsatz brauchbar.
+    """
+    if len(buffer) < min_chars:
+        return None, buffer
+    m = _SATZ_ENDE.search(buffer, min_chars)
+    if not m:
+        return None, buffer
+    return buffer[: m.start()].strip(), buffer[m.end():]
+
+
 class OrpheusHandler(AsyncEventHandler):
     def __init__(self, wyoming_info: Info, cli_args, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.wyoming_info_event = wyoming_info.event()
         self.cli_args = cli_args
+        self._stream_voice = cli_args.voice
+        self._stream_buffer = ""
+        self._stream_started = False
+        self._stream_t0 = 0.0
+        self._stream_samples = 0
+
+    async def _spreche(self, text: str, voice: str) -> None:
+        """Synthetisiert einen Textabschnitt und schiebt ihn sofort raus."""
+        if not text.strip():
+            return
+        if not self._stream_started:
+            await self.write_event(
+                AudioStart(rate=RATE, width=WIDTH, channels=CHANNELS).event()
+            )
+            self._stream_started = True
+
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        stop_event = threading.Event()
+
+        def produce() -> None:
+            try:
+                import voice_app as va
+
+                os.environ["ORPHEUS_VOICE"] = voice
+                gen = va.stream_orpheus_audio(text)
+                try:
+                    for _sr, chunk in gen:
+                        if stop_event.is_set():
+                            break
+                        loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                finally:
+                    gen.close()
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+            except Exception as err:
+                loop.call_soon_threadsafe(queue.put_nowait, err)
+
+        task = loop.run_in_executor(None, produce)
+        step = WIDTH * CHANNELS * self.cli_args.samples_per_chunk
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                if isinstance(item, BaseException):
+                    raise item
+                pcm = (np.clip(item, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+                self._stream_samples += len(pcm) // (WIDTH * CHANNELS)
+                for off in range(0, len(pcm), step):
+                    await self.write_event(
+                        AudioChunk(
+                            audio=pcm[off : off + step],
+                            rate=RATE,
+                            width=WIDTH,
+                            channels=CHANNELS,
+                        ).event()
+                    )
+        except (ConnectionError, BrokenPipeError, RuntimeError) as err:
+            stop_event.set()
+            _LOGGER.warning(
+                "Gegenstelle weg (%s), Stream-Synthese abgebrochen",
+                type(err).__name__,
+            )
+        finally:
+            stop_event.set()
+            await task
+
+    async def _nachlauf_und_stop(self) -> None:
+        """Haengt die Nachlauf-Stille an und schliesst den Audiostrom."""
+        if not self._stream_started:
+            return
+        tail_ms = max(0, int(self.cli_args.tail_silence_ms))
+        if tail_ms:
+            n_samples = int(RATE * tail_ms / 1000)
+            silence = b"\x00" * (n_samples * WIDTH * CHANNELS)
+            step = WIDTH * CHANNELS * self.cli_args.samples_per_chunk
+            try:
+                for off in range(0, len(silence), step):
+                    await self.write_event(
+                        AudioChunk(
+                            audio=silence[off : off + step],
+                            rate=RATE,
+                            width=WIDTH,
+                            channels=CHANNELS,
+                        ).event()
+                    )
+            except (ConnectionError, BrokenPipeError, RuntimeError):
+                return
+        try:
+            await self.write_event(AudioStop().event())
+        except (ConnectionError, BrokenPipeError, RuntimeError):
+            pass
+        self._stream_started = False
 
     async def handle_event(self, event: Event) -> bool:
         if Describe.is_type(event.type):
             await self.write_event(self.wyoming_info_event)
             return True
 
-        from wyoming.tts import Synthesize
+        from wyoming.tts import (
+            Synthesize,
+            SynthesizeChunk,
+            SynthesizeStart,
+            SynthesizeStop,
+        )
+
+        # Streaming-Pfad: HA schickt den Text des LLM stueckweise, sobald er
+        # entsteht. Jeder fertige Satz wird sofort synthetisiert und ausgeliefert,
+        # damit beim Satelliten durchgehend Daten ankommen.
+        if SynthesizeStart.is_type(event.type):
+            start = SynthesizeStart.from_event(event)
+            self._stream_voice = (
+                start.voice.name if start.voice and start.voice.name else self.cli_args.voice
+            )
+            self._stream_buffer = ""
+            self._stream_started = False
+            self._stream_t0 = time.perf_counter()
+            self._stream_samples = 0
+            _LOGGER.info("Stream-Synthese beginnt (%s)", self._stream_voice)
+            return True
+
+        if SynthesizeChunk.is_type(event.type):
+            self._stream_buffer += SynthesizeChunk.from_event(event).text
+            while True:
+                satz, rest = _naechster_satz(self._stream_buffer)
+                if satz is None:
+                    break
+                self._stream_buffer = rest
+                await self._spreche(satz, self._stream_voice)
+            return True
+
+        if SynthesizeStop.is_type(event.type):
+            if self._stream_buffer.strip():
+                await self._spreche(self._stream_buffer.strip(), self._stream_voice)
+                self._stream_buffer = ""
+            await self._nachlauf_und_stop()
+            _LOGGER.info(
+                "Stream fertig: %.2fs Audio, gesamt %.2fs",
+                self._stream_samples / RATE,
+                time.perf_counter() - self._stream_t0,
+            )
+            return True
 
         if not Synthesize.is_type(event.type):
             return True
@@ -116,6 +272,7 @@ class OrpheusHandler(AsyncEventHandler):
             # die Generierung abgebrochen.
             max_samples = int(self.cli_args.max_audio_seconds * RATE)
             gekuerzt = False
+            abgebrochen = False
 
             first = None
             total = 0
@@ -141,22 +298,38 @@ class OrpheusHandler(AsyncEventHandler):
                 pcm = (np.clip(item, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
                 total += len(pcm)
                 step = WIDTH * CHANNELS * self.cli_args.samples_per_chunk
-                for off in range(0, len(pcm), step):
-                    await self.write_event(
-                        AudioChunk(
-                            audio=pcm[off : off + step],
-                            rate=RATE,
-                            width=WIDTH,
-                            channels=CHANNELS,
-                        ).event()
+                try:
+                    for off in range(0, len(pcm), step):
+                        await self.write_event(
+                            AudioChunk(
+                                audio=pcm[off : off + step],
+                                rate=RATE,
+                                width=WIDTH,
+                                channels=CHANNELS,
+                            ).event()
+                        )
+                except (ConnectionError, BrokenPipeError, RuntimeError) as err:
+                    # Der Satellit gibt nach rund 45 s auf und schliesst die
+                    # Verbindung; Home Assistant meldet dann "Cannot write to
+                    # closing transport". Ohne diesen Abbruch generiert das
+                    # Modell stur zu Ende -- gemessen 70 s GPU-Zeit fuer Audio,
+                    # das niemand mehr hoert.
+                    abgebrochen = True
+                    stop_event.set()
+                    _LOGGER.warning(
+                        "Gegenstelle weg nach %.1fs Audio (%s), Generierung "
+                        "abgebrochen",
+                        total / (RATE * WIDTH * CHANNELS),
+                        type(err).__name__,
                     )
+                    break
             await task
 
             # Der Satellit schneidet sonst das letzte Wort ab. Das Audio selbst
             # ist vollstaendig -- gemessen endet es sauber in Stille --, aber der
             # Player beendet die Wiedergabe ein Stueck vor dem Stream-Ende. Die
             # natuerliche Ausklingzeit von rund 150 ms reicht als Puffer nicht.
-            tail_ms = max(0, int(self.cli_args.tail_silence_ms))
+            tail_ms = 0 if abgebrochen else max(0, int(self.cli_args.tail_silence_ms))
             if tail_ms:
                 n_samples = int(RATE * tail_ms / 1000)
                 silence = b"\x00" * (n_samples * WIDTH * CHANNELS)
@@ -171,12 +344,13 @@ class OrpheusHandler(AsyncEventHandler):
                         ).event()
                     )
 
-            await self.write_event(AudioStop().event())
+            if not abgebrochen:
+                await self.write_event(AudioStop().event())
             dur = total / (RATE * WIDTH * CHANNELS)
             _LOGGER.info(
                 "fertig: %.2fs Audio%s, erster Chunk nach %.2fs, gesamt %.2fs",
                 dur,
-                " (gekuerzt)" if gekuerzt else "",
+                " (abgebrochen)" if abgebrochen else (" (gekuerzt)" if gekuerzt else ""),
                 first if first is not None else -1.0,
                 time.perf_counter() - t0,
             )
@@ -252,6 +426,20 @@ async def main() -> None:
                 installed=True,
                 voices=voices,
                 version="0.1",
+                # Ohne das puffert Home Assistant die komplette Synthese, bevor
+                # es dem Satelliten das erste Byte gibt (gemessen: erste Bytes
+                # nach 15,1 s bei 15,17 s Gesamtdauer). Der AtomS3R bricht aber
+                # nach 30 s ohne Daten ab (audio_reader.cpp:
+                # MAX_FETCHING_HEADER_ATTEMPTS * CONNECTION_TIMEOUT_MS), lange
+                # Antworten wurden dadurch abgeschnitten. Mit dem Flag nutzt HA
+                # async_stream_tts_audio und reicht Text wie Audio laufend durch.
+                # VORERST AUS. Mit True nutzt HA async_stream_tts_audio und
+                # liefert die ersten Bytes nach 4,6 s statt 15,1 s -- aber die
+                # HTTP-Antwort an den Satelliten wird dann nicht geschlossen:
+                # Player bleibt in "playing", assist_satellite in "responding",
+                # announce laeuft in seinen Timeout. Erst klaeren, wie HA das
+                # Stream-Ende erwartet, dann wieder einschalten.
+                supports_synthesize_streaming=False,
             )
         ],
     )
