@@ -158,7 +158,6 @@ class OrpheusHandler(AsyncEventHandler):
                 type(err).__name__,
             )
         finally:
-            stop_event.set()
             await task
 
     async def _nachlauf_und_stop(self) -> None:
