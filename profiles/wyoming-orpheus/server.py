@@ -48,7 +48,7 @@ VOICES = ["jana", "thomas"]
 
 _SATZ_ENDE = re.compile(r"(?<=[.!?:;])\s+")
 _ERSTER_ABSCHNITT = 140
-_WEITERE_ABSCHNITTE = 320
+_WEITERE_ABSCHNITTE = 140
 
 
 def _naechster_satz(buffer: str, min_chars: int = 140) -> tuple[str | None, str]:
@@ -58,8 +58,8 @@ def _naechster_satz(buffer: str, min_chars: int = 140) -> tuple[str | None, str]
     kurzen Saetzen dominiert die. Ein Testtext aus vierzehn Kurzsaetzen brauchte
     satzweise 51,5 s fuer 27,5 s Audio. Gesammelt wird deshalb bis
     ``min_chars``, dann bis zum naechsten Satzende. Der erste Abschnitt bleibt
-    klein, damit der erste Ton frueh kommt; die folgenden sind groesser, damit
-    weniger Nachgenerierungs-Pausen entstehen.
+    klein, damit der erste Ton frueh kommt und die Nachgenerierungs-Pausen
+    kuerzer bleiben.
     """
     if len(buffer) < min_chars:
         return None, buffer
