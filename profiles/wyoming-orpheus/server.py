@@ -47,6 +47,8 @@ VOICES = ["jana", "thomas"]
 
 
 _SATZ_ENDE = re.compile(r"(?<=[.!?:;])\s+")
+_ERSTER_ABSCHNITT = 140
+_WEITERE_ABSCHNITTE = 320
 
 
 def _naechster_satz(buffer: str, min_chars: int = 140) -> tuple[str | None, str]:
@@ -55,8 +57,9 @@ def _naechster_satz(buffer: str, min_chars: int = 140) -> tuple[str | None, str]
     Nicht jeder Satz einzeln: jeder Request kostet Prompt-Verarbeitung, und bei
     kurzen Saetzen dominiert die. Ein Testtext aus vierzehn Kurzsaetzen brauchte
     satzweise 51,5 s fuer 27,5 s Audio. Gesammelt wird deshalb bis
-    ``min_chars``, dann bis zum naechsten Satzende -- so bleibt der erste Ton
-    frueh und der Durchsatz brauchbar.
+    ``min_chars``, dann bis zum naechsten Satzende. Der erste Abschnitt bleibt
+    klein, damit der erste Ton frueh kommt; die folgenden sind groesser, damit
+    weniger Nachgenerierungs-Pausen entstehen.
     """
     if len(buffer) < min_chars:
         return None, buffer
@@ -77,6 +80,7 @@ class OrpheusHandler(AsyncEventHandler):
         self._stream_t0 = 0.0
         self._stream_samples = 0
         self._streaming_session = False
+        self._stream_min_chars = _ERSTER_ABSCHNITT
 
     async def _spreche(self, text: str, voice: str) -> None:
         """Synthetisiert einen Textabschnitt und schiebt ihn sofort raus."""
@@ -200,17 +204,21 @@ class OrpheusHandler(AsyncEventHandler):
             self._stream_t0 = time.perf_counter()
             self._stream_samples = 0
             self._streaming_session = True
+            self._stream_min_chars = _ERSTER_ABSCHNITT
             _LOGGER.info("Stream-Synthese beginnt (%s)", self._stream_voice)
             return True
 
         if SynthesizeChunk.is_type(event.type):
             self._stream_buffer += SynthesizeChunk.from_event(event).text
             while True:
-                satz, rest = _naechster_satz(self._stream_buffer)
+                satz, rest = _naechster_satz(
+                    self._stream_buffer, min_chars=self._stream_min_chars
+                )
                 if satz is None:
                     break
                 self._stream_buffer = rest
                 await self._spreche(satz, self._stream_voice)
+                self._stream_min_chars = _WEITERE_ABSCHNITTE
             return True
 
         if SynthesizeStop.is_type(event.type):

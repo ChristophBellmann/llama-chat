@@ -585,9 +585,11 @@ Ergebnis nach dem Umbau: erste Bytes nach 4,3 s statt 15,1 s, und eine Antwort
 von 35,84 s Audio laeuft in 33,10 s vollstaendig durch -- vorher war bei 30 s
 Schluss.
 
-Der Text wird abschnittsweise ab 140 Zeichen synthetisiert. Satzweise waere
-frueher zu hoeren, kostet aber pro Request Prompt-Verarbeitung: ein Testtext aus
-vierzehn Kurzsaetzen brauchte satzweise 51,5 s fuer 27,5 s Audio.
+Der erste Abschnitt wird ab 140 Zeichen synthetisiert, weitere Abschnitte ab
+320 Zeichen. So kommt der erste Ton frueh, ohne dass zwischen jedem kurzen Satz
+eine Nachgenerierungs-Pause entsteht. Satzweise waere frueher zu hoeren, kostet
+aber pro Request Prompt-Verarbeitung: ein Testtext aus vierzehn Kurzsaetzen
+brauchte satzweise 51,5 s fuer 27,5 s Audio.
 
 ### Das letzte Wort: Nachlauf-Stille
 
