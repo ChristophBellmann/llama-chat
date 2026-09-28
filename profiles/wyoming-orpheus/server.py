@@ -22,6 +22,7 @@ import signal
 import sys
 import threading
 import time
+import weakref
 from functools import partial
 from pathlib import Path
 
@@ -49,6 +50,7 @@ VOICES = ["jana", "thomas"]
 _SATZ_ENDE = re.compile(r"(?<=[.!?:;])\s+")
 _ERSTER_ABSCHNITT = 140
 _WEITERE_ABSCHNITTE = 140
+_ACTIVE_HANDLERS: weakref.WeakSet = weakref.WeakSet()
 
 
 def _naechster_satz(buffer: str, min_chars: int = 140) -> tuple[str | None, str]:
@@ -81,6 +83,15 @@ class OrpheusHandler(AsyncEventHandler):
         self._stream_samples = 0
         self._streaming_session = False
         self._stream_min_chars = _ERSTER_ABSCHNITT
+        self._cancel_event = threading.Event()
+        self._active_response: dict[str, object] = {}
+
+    def _cancel_stream(self) -> None:
+        """Stop synthesis and close the current HTTP response, if any."""
+        self._cancel_event.set()
+        response = self._active_response.get("response")
+        if response is not None:
+            response.close()
 
     async def _spreche(self, text: str, voice: str) -> None:
         """Synthetisiert einen Textabschnitt und schiebt ihn sofort raus."""
@@ -94,14 +105,19 @@ class OrpheusHandler(AsyncEventHandler):
 
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
-        stop_event = threading.Event()
+        stop_event = self._cancel_event
+        response_holder = self._active_response
 
         def produce() -> None:
             try:
                 import voice_app as va
 
                 os.environ["ORPHEUS_VOICE"] = voice
-                gen = va.stream_orpheus_audio(text)
+                gen = va.stream_orpheus_audio(
+                    text,
+                    cancel_event=stop_event,
+                    response_holder=response_holder,
+                )
                 try:
                     for _sr, chunk in gen:
                         if stop_event.is_set():
@@ -121,6 +137,8 @@ class OrpheusHandler(AsyncEventHandler):
                 if item is None:
                     break
                 if isinstance(item, BaseException):
+                    if stop_event.is_set():
+                        return
                     raise item
                 pcm = (np.clip(item, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
                 self._stream_samples += len(pcm) // (WIDTH * CHANNELS)
@@ -195,6 +213,12 @@ class OrpheusHandler(AsyncEventHandler):
         # entsteht. Jeder fertige Satz wird sofort synthetisiert und ausgeliefert,
         # damit beim Satelliten durchgehend Daten ankommen.
         if SynthesizeStart.is_type(event.type):
+            for handler in list(_ACTIVE_HANDLERS):
+                if handler is not self:
+                    handler._cancel_stream()
+            _ACTIVE_HANDLERS.add(self)
+            self._cancel_event.clear()
+            self._active_response.clear()
             start = SynthesizeStart.from_event(event)
             self._stream_voice = (
                 start.voice.name if start.voice and start.voice.name else self.cli_args.voice
@@ -209,6 +233,8 @@ class OrpheusHandler(AsyncEventHandler):
             return True
 
         if SynthesizeChunk.is_type(event.type):
+            if self._cancel_event.is_set():
+                return True
             self._stream_buffer += SynthesizeChunk.from_event(event).text
             while True:
                 satz, rest = _naechster_satz(
@@ -222,11 +248,17 @@ class OrpheusHandler(AsyncEventHandler):
             return True
 
         if SynthesizeStop.is_type(event.type):
+            if self._cancel_event.is_set():
+                self._stream_buffer = ""
+                self._streaming_session = False
+                _ACTIVE_HANDLERS.discard(self)
+                return True
             if self._stream_buffer.strip():
                 await self._spreche(self._stream_buffer.strip(), self._stream_voice)
                 self._stream_buffer = ""
             await self._nachlauf_und_stop()
             self._streaming_session = False
+            _ACTIVE_HANDLERS.discard(self)
             _LOGGER.info(
                 "Stream fertig: %.2fs Audio, gesamt %.2fs",
                 self._stream_samples / RATE,

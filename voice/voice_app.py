@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import random
 import tempfile
+import threading
 import time
 import wave
 from pathlib import Path
@@ -384,7 +385,11 @@ def _split_orpheus_text(text: str, max_chars: int | None = None) -> list[str]:
     return segments
 
 
-def _stream_orpheus_segment(text: str):
+def _stream_orpheus_segment(
+    text: str,
+    cancel_event: threading.Event | None = None,
+    response_holder: dict[str, requests.Response] | None = None,
+):
     """Liefert Audio-Chunks eines begrenzten Textabschnitts während der Generierung.
 
     Ohne Streaming wartet der Aufrufer auf die komplette Generierung (~6-7 s fuer
@@ -417,8 +422,13 @@ def _stream_orpheus_segment(text: str):
     emitted_frames = 0
     buf = ""
 
+    if cancel_event is not None and cancel_event.is_set():
+        return
+
     r = _HTTP.post(url, json=payload, stream=True,
                    timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "600")))
+    if response_holder is not None:
+        response_holder["response"] = r
     r.raise_for_status()
 
     def flush(final: bool = False):
@@ -439,6 +449,9 @@ def _stream_orpheus_segment(text: str):
                 break
 
     for raw in r.iter_lines(decode_unicode=True):
+        if cancel_event is not None and cancel_event.is_set():
+            r.close()
+            return
         if not raw:
             continue
         line = raw[6:] if raw.startswith("data: ") else raw
@@ -461,10 +474,16 @@ def _stream_orpheus_segment(text: str):
     yield from flush(final=True)
 
 
-def stream_orpheus_audio(text: str):
+def stream_orpheus_audio(
+    text: str,
+    cancel_event: threading.Event | None = None,
+    response_holder: dict[str, requests.Response] | None = None,
+):
     """Streamt auch lange Texte vollständig, in begrenzten TTS-Abschnitten."""
     for segment in _split_orpheus_text(text):
-        yield from _stream_orpheus_segment(segment)
+        if cancel_event is not None and cancel_event.is_set():
+            return
+        yield from _stream_orpheus_segment(segment, cancel_event, response_holder)
 
 
 def generate_orpheus_tokens_cli(text: str) -> str:
