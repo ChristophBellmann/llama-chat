@@ -348,6 +348,7 @@ LLAMA_TEMP=0.7
 # Orpheus-TTS
 ORPHEUS_COMPLETION_URL=http://127.0.0.1:8082/completion
 SNAC_DEVICE=cpu
+ORPHEUS_TTS_TIMEOUT=600
 
 # Piper-Fallback
 PIPER_VOICE=de_DE-thorsten-medium

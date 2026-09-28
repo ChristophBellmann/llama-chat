@@ -418,7 +418,7 @@ def _stream_orpheus_segment(text: str):
     buf = ""
 
     r = _HTTP.post(url, json=payload, stream=True,
-                   timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "240")))
+                   timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "600")))
     r.raise_for_status()
 
     def flush(final: bool = False):
@@ -511,7 +511,7 @@ def generate_orpheus_tokens_cli(text: str) -> str:
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "240")),
+        timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "600")),
     )
     if proc.returncode != 0:
         raise RuntimeError(f"orpheus llama-completion failed exit={proc.returncode}\n{proc.stderr}")
@@ -536,7 +536,7 @@ def generate_orpheus_tokens_server(text: str) -> str:
         # es selbst, sobald der Satz gesprochen ist.
         "ignore_eos": os.environ.get("ORPHEUS_IGNORE_EOS", "0") == "1",
     }
-    r = _HTTP.post(url, json=payload, timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "240")))
+    r = _HTTP.post(url, json=payload, timeout=int(os.environ.get("ORPHEUS_TTS_TIMEOUT", "600")))
     if os.environ.get("ORPHEUS_VERBOSE", "0") == "1":
         print("orpheus-server HTTP:", r.status_code, flush=True)
         print(r.text[:1000], flush=True)
