@@ -1,0 +1,61 @@
+# Home-Assistant-Paket. Der Router hält den geheimen Schlüssel, nicht YAML.
+rest_command:
+  workstation_aufwecken:
+    url: http://127.0.0.1:11436/workstation/wake
+    method: POST
+    timeout: 55
+  workstation_standby:
+    url: http://127.0.0.1:11436/workstation/suspend
+    method: POST
+    timeout: 15
+  workstation_standby_bei_leerlauf:
+    url: http://127.0.0.1:11436/workstation/suspend-idle
+    method: POST
+    timeout: 15
+
+input_boolean:
+  workstation_automatisch_schlafen:
+    name: Workstation nach 30 Minuten schlafen lassen
+    icon: mdi:sleep
+
+script:
+  workstation_aufwecken:
+    alias: Workstation aufwecken
+    icon: mdi:power
+    mode: single
+    sequence:
+      - action: rest_command.workstation_aufwecken
+        response_variable: ergebnis
+      - if: "{{ ergebnis.status != 200 }}"
+        then:
+          - action: persistent_notification.create
+            data:
+              title: Workstation
+              message: Die Workstation ist nach dem Weckversuch nicht bereit. Bitte WoWLAN prüfen.
+  workstation_standby:
+    alias: Workstation in Standby
+    icon: mdi:power-sleep
+    mode: single
+    sequence:
+      - action: rest_command.workstation_standby
+        response_variable: ergebnis
+      - if: "{{ ergebnis.status != 202 }}"
+        then:
+          - action: persistent_notification.create
+            data:
+              title: Workstation
+              message: "Standby abgelehnt: {{ ergebnis.content }}"
+
+automation:
+  - id: workstation_standby_bei_leerlauf
+    alias: Workstation bei Leerlauf schlafen lassen
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        minutes: "/5"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.workstation_automatisch_schlafen
+        state: "on"
+    actions:
+      - action: rest_command.workstation_standby_bei_leerlauf
