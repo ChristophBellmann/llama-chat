@@ -1,0 +1,141 @@
+# ==============================
+# Umschalter für die Sprachausgabe
+# ==============================
+#
+# Gegenstück zu voice_agent_switch.yaml: dort wird entschieden, welches Modell
+# antwortet, hier mit welcher Stimme es gesprochen wird. Beide gelten für
+# dieselben Pipelines ``christoph-produktion`` und ``thinkthing`` und damit für
+# alle Satelliten gemeinsam — Modell- und Stimmwahl sind je genau ein
+# Umschalter im ganzen Haus.
+#
+# ``server-cpu-fallback`` folgt auch hier bewusst nicht: sie ist der manuelle
+# Notausgang und behält Piper, damit sie auch dann spricht, wenn die
+# Workstation aus ist.
+#
+# Die Namen der Optionen müssen exakt den ``label``-Werten in
+# config/voice_tts_options.json entsprechen. Eine weitere Stimme ist deshalb
+# zwei Zeilen: ein Eintrag im Inventar und eine Option hier.
+#
+# ``Jana (Orpheus, Workstation)`` hängt an zwei Diensten auf der Workstation
+# (start_orpheus_de_server.sh und start_wyoming_orpheus.sh). Sind sie aus,
+# prüft das Skript den TCP-Port, endet mit Exitcode 1 und die Pipelines bleiben
+# auf der bisherigen Stimme — sonst blieben die Satelliten stumm.
+#
+# Das schützt nur den Wechsel **auf** Jana. Geht die Workstation danach aus,
+# stehen die Pipelines weiter auf ``tts.orpheus_de``, und jede Antwort des
+# Assistenten bleibt stumm — während das LLM über den Router längst still auf
+# den Ausweichweg gewechselt hat. So am 14.09. und 16.09.2026: Ansagen über
+# ``script.sprich`` (Piper direkt) waren am CoreS3 Audio-Komm zu hören, die
+# Antworten nicht. Die Wyoming-TTS-Entität blieb dabei trotz Verbindungsfehler
+# verfügbar; ihr Zustand eignet sich nicht als Erreichbarkeitsprüfung.
+# ``binary_sensor.orpheus_tts_erreichbar`` prüft deshalb den echten TCP-Port.
+# Die gemeinsame Umschaltautomation stellt die Pipelines auf Ramona, solange
+# Orpheus fehlt, und danach zurück. Die Auswahl in ``input_select.voice_tts``
+# bleibt dabei auf Jana: sie ist der Wunsch, nicht der Ist-Zustand.
+# Das Modellprofil kann Ramona erzwingen (Qwen3.8 IQ2_S), auch im Benchmark.
+
+command_line:
+  - binary_sensor:
+      name: Orpheus TTS erreichbar
+      unique_id: orpheus_tts_erreichbar
+      device_class: connectivity
+      command: >-
+        python3 /config/scripts/check_tcp.py 192.168.178.51 10401 --timeout 3
+      payload_on: "ON"
+      payload_off: "OFF"
+      scan_interval: 15
+
+input_select:
+  voice_tts:
+    name: Sprachausgabe
+    icon: mdi:account-voice
+    options:
+      - "Ramona (Piper, lokal)"
+      - "Greta (NeuTTS, lokal)"
+      - "Jana (Orpheus, Workstation)"
+
+shell_command:
+  set_voice_tts: >-
+    python3 /config/scripts/set_voice_tts.py '{{ stimme }}'
+
+automation:
+  - id: voice_tts_switch_apply
+    alias: "Voice - Sprachausgabe umschalten"
+    description: >-
+      Schreibt die wirksame Stimme in die Pipelines: IQ2_S erzwingt Ramona,
+      sonst gilt die Auswahl mit Ramona als Ausweichstimme. Meldet einen Fehlschlag als persistente Benachrichtigung. Die Aktion
+      liest den Zustand direkt aus der Entität, damit auch ein manueller Start
+      der Automation funktioniert.
+    mode: queued
+    max: 10
+    trigger:
+      - platform: state
+        entity_id: input_select.voice_tts
+      - platform: state
+        entity_id: sensor.workstation_modellstatus
+        attribute: voice
+      - platform: state
+        entity_id: binary_sensor.orpheus_tts_erreichbar
+        to: "off"
+        for: "00:00:10"
+      - platform: state
+        entity_id: binary_sensor.orpheus_tts_erreichbar
+        to: "on"
+        for: "00:00:30"
+      - platform: homeassistant
+        event: start
+    condition:
+      - condition: template
+        value_template: "{{ states('input_select.voice_tts') in (state_attr('input_select.voice_tts', 'options') or []) }}"
+    action:
+      - variables:
+          gewaehlt: >-
+            {% set wunsch = states('input_select.voice_tts') %}
+            {{ 'Ramona (Piper, lokal)'
+               if state_attr('sensor.workstation_modellstatus', 'voice') == 'ramona'
+               or (wunsch == 'Jana (Orpheus, Workstation)' and
+                   not is_state('binary_sensor.orpheus_tts_erreichbar', 'on'))
+               else wunsch }}
+      - action: shell_command.set_voice_tts
+        data:
+          stimme: "{{ gewaehlt }}"
+        response_variable: switch_result
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ switch_result.returncode == 0 }}"
+            sequence:
+              - action: logbook.log
+                data:
+                  name: Sprachausgabe
+                  message: "umgeschaltet auf {{ gewaehlt }}"
+        default:
+          # Wie beim Sprach-Agenten: die Auswahl darf keine Stimme anzeigen,
+          # die gar nicht spricht. Sie geht deshalb auf den vorherigen Wert
+          # zurück; der dadurch ausgelöste zweite Lauf stellt dieselbe Stimme
+          # ein, die ohnehin schon aktiv ist.
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ trigger.from_state is defined and trigger.from_state
+                     and trigger.from_state.state in
+                     state_attr('input_select.voice_tts', 'options') }}
+            then:
+              - action: input_select.select_option
+                target:
+                  entity_id: input_select.voice_tts
+                data:
+                  option: "{{ trigger.from_state.state }}"
+          - action: persistent_notification.create
+            data:
+              # Eigene ID je Fehlversuch: der Rückfall löst einen zweiten,
+              # erfolgreichen Lauf aus. Mit fester ID hätte der die Meldung
+              # sofort wieder entfernt.
+              notification_id: "voice_tts_switch_failed_{{ now().timestamp() | int }}"
+              title: Sprachausgabe nicht umgeschaltet
+              message: >-
+                Der Wechsel auf {{ gewaehlt }} ist mit Exitcode
+                {{ switch_result.returncode }} fehlgeschlagen. Die Pipelines
+                sprechen weiterhin mit der bisherigen Stimme, und die Auswahl
+                wurde zurückgesetzt.
+                {{ switch_result.stderr }}

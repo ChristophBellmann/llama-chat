@@ -75,6 +75,14 @@ def stage(target):
             "          - entity: script.workstation_modelle_testen\n"
             "          - entity: script.workstation_modellvergleich_stoppen\n"
             "          - entity: sensor.workstation_modellvergleich\n")
+    if "sensor.workstation_modellstimme" not in dashboard:
+        import re
+        dashboard, count = re.subn(
+            r'(?m)^([ ]*)- entity: sensor.workstation_modellstatus\n([ ]*)name: Modellwechsel\n',
+            lambda m: m[0] + m[1] + '- entity: sensor.workstation_modellstimme\n'
+                      + m[2] + 'name: Stimme zum Modell\n', dashboard)
+        if count != 1:
+            raise RuntimeError('Dashboard-Modellstatus nicht eindeutig')
     # Erst schreiben, nachdem alle erwarteten Stellen geprüft wurden.
     router_path.write_text(router)
     docker_path.write_text(docker)
@@ -83,6 +91,7 @@ def stage(target):
     shutil.copyfile(source / "ha_router_power.py", target / "llm-router/ha_router_power.py")
     shutil.copyfile(source / "ha_test_router.py", target / "llm-router/tests/test_workstation_power.py")
     shutil.copyfile(source / "workstation_ha.yaml", target / "config/packages/workstation_power.yaml")
+    shutil.copyfile(source / "voice_tts_switch_ha.yaml", target / "config/packages/voice_tts_switch.yaml")
     shutil.copyfile(source / "workstation_models_ha.yaml", target / "config/packages/workstation_models.yaml")
     shutil.copyfile(source / "workstation_benchmark_ha.yaml", target / "config/packages/workstation_benchmark.yaml")
 

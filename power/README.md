@@ -198,3 +198,16 @@ sichtbar. Betriebsdokumentation:
 Prüfen: `python3 -m unittest power.test_power power.test_models power.test_benchmark -q`.
 `power/stage_ha.py` übernimmt beide Modellpakete, die Router-Regeln und einfache
 Steuerzeilen; das ausführliche Dashboard wird im HA-Repository gepflegt.
+
+### Modellabhängige Stimme
+
+`Qwen3.8-27B-UD-IQ2_S.gguf` nutzt automatisch **Ramona (Piper, lokal)**,
+65.536 Kontext-Tokens, Batch 512/256, q8-KV und FIT_TARGET 1024.
+Der Modellcontroller stoppt dafür Orpheus-LLM und Wyoming vor dem Laden.
+Andere Modelle starten beide Dienste nach Freigabe des bisherigen LLM-Speichers.
+Die HA-Auswahl der Stimme bleibt als Wunsch erhalten; die gemeinsame
+Stimmenautomation erzwingt Ramona, solange das Modellprofil dies verlangt.
+Das Dashboard zeigt die Vorgabe unter **Stimme zum Modell** und in den
+Benchmark-Ergebnissen. Benchmark, Abbruch und Fehlerwiederherstellung wenden
+dieselbe Dienststeuerung an; Boot verhindert Orpheus neben IQ2_S über
+`power/orpheus_condition.py` (Drop-ins installiert von `install_workstation_power.sh`).

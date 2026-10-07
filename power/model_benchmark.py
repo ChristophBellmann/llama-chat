@@ -192,6 +192,7 @@ class ModelBenchmark:
                        'total_s': None, 'tokens_s': None, 'vram_idle_mib': None, 'vram_peak_mib': None}
                 try:
                     row['settings'] = control.settings(model)
+                    row['voice'] = control.voice(model)
                     started = time.monotonic()
                     control.change(model)
                     if control.state != 'bereit' or control.status()['active'] != model:
@@ -243,6 +244,8 @@ class ModelBenchmark:
         except Exception as error:
             failed = str(error)[:180]
         finally:
+            with control.lock:
+                control.state, control.requested = 'stellt wieder her', original
             # Die Wiederherstellung darf nicht von schreibbarer Ergebnisablage abhängen.
             try:
                 self.publish(status='stellt wieder her', phase='stellt wieder her', current=original)
@@ -255,6 +258,7 @@ class ModelBenchmark:
                 else:
                     control.dropin.write_bytes(previous)
                 control.systemctl('daemon-reload')
+                control.prepare_services(original)
                 control.systemctl('restart', 'llama-server.service')
                 control.wait_ready(original)
                 control.state, control.error, control.requested = 'bereit', '', original

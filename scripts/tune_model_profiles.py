@@ -228,6 +228,8 @@ def main():
         old = json.loads(report_path.read_text())
         report['results'] = old.get('results', {})
         report['previous_started'] = old.get('started')
+        if 'ramona_iq2_s' in old:
+            report['ramona_iq2_s'] = old['ramona_iq2_s']
     profiles = {'version': 1, 'defaults': DEFAULTS, 'models': {}}
     if settings_path.exists():
         profiles['models'] = json.loads(settings_path.read_text()).get('models', {})
@@ -237,6 +239,9 @@ def main():
         tts()  # Initialize the CPU audio decoder before measuring warm streaming.
         for row in selected:
             model = row['file']
+            if profiles['models'].get(model, {}).get('voice') == 'ramona':
+                print(f'SKIP {model}: requires Ramona calibration without Orpheus', flush=True)
+                continue
             print(f'MEASURE {model}', flush=True)
             trials = []
             try:

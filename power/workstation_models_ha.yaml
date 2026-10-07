@@ -13,6 +13,7 @@ rest:
           - ready
           - requested
           - error
+          - voice
 
 rest_command:
   workstation_modell_laden:
@@ -35,6 +36,18 @@ template:
             data:
               modell: "{{ option }}"
             response_variable: ergebnis
+          - if: "{{ ergebnis.status in [200, 202] and option == 'Qwen3.8-27B-UD-IQ2_S.gguf' }}"
+            then:
+              - action: shell_command.set_voice_tts
+                data:
+                  stimme: Ramona (Piper, lokal)
+                response_variable: stimmergebnis
+              - if: "{{ stimmergebnis.returncode != 0 }}"
+                then:
+                  - action: persistent_notification.create
+                    data:
+                      title: Ramona nicht aktiviert
+                      message: "{{ stimmergebnis.stderr }}"
           - if: "{{ ergebnis.status not in [200, 202] }}"
             then:
               - action: persistent_notification.create
@@ -50,6 +63,16 @@ template:
         unique_id: workstation_geladenes_modell
         icon: mdi:brain
         state: "{{ state_attr('sensor.workstation_modellstatus', 'active') or 'unbekannt' }}"
+      - name: Workstation Modellstimme
+        unique_id: workstation_modellstimme
+        icon: mdi:account-voice
+        state: >-
+          {% set wunsch = states('input_select.voice_tts') %}
+          {{ 'Ramona (Piper, lokal)'
+             if state_attr('sensor.workstation_modellstatus', 'voice') == 'ramona'
+             or (wunsch == 'Jana (Orpheus, Workstation)' and
+                 not is_state('binary_sensor.orpheus_tts_erreichbar', 'on'))
+             else wunsch }}
 
 automation:
   - id: workstation_modell_ladefehler

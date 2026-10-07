@@ -27,6 +27,13 @@ UMask=0077
 [Install]
 WantedBy=default.target
 EOF
+for unit in orpheus-llm wyoming-orpheus; do
+  mkdir -p "$HOME/.config/systemd/user/$unit.service.d"
+  cat > "$HOME/.config/systemd/user/$unit.service.d/model-voice.conf" <<EOF
+[Service]
+ExecCondition=/usr/bin/python3 "$ROOT_DIR/power/orpheus_condition.py"
+EOF
+done
 systemctl --user daemon-reload
 systemctl --user enable --now workstation-power.service
 nmcli connection modify Ultranet 802-11-wireless.wake-on-wlan magic

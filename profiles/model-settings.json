@@ -481,18 +481,97 @@
     "Qwen3.8-27B-UD-IQ2_S.gguf": {
       "settings": {
         "GPU_LAYERS": "auto",
-        "CTX": 8192,
+        "CTX": 65536,
         "PARALLEL": 1,
         "BATCH_SIZE": 512,
         "UBATCH_SIZE": 256,
         "CACHE_TYPE_K": "q8_0",
         "CACHE_TYPE_V": "q8_0",
         "LLAMA_ARG_FIT": "on",
-        "LLAMA_ARG_FIT_TARGET": 2304,
+        "LLAMA_ARG_FIT_TARGET": 1024,
         "GGML_CUDA_DISABLE_GRAPHS": 1,
         "LLAMA_ARG_LOG_VERBOSITY": 4
       },
       "measurements": {
+        "memory": {
+          "process_vram_mib": 10794.2,
+          "total_vram_mib": 11130.6,
+          "capacity_mib": 12272.0,
+          "rss_mib": 1515.9,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 28524.4,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 65,
+          "total_layers": 65,
+          "kv_gpu_mib": 2176.0,
+          "cpu_model_buffer_mib": 397.85,
+          "cpu_tensor_overrides": false
+        },
+        "chat": {
+          "seconds": 8.607,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Grundwasser oder dem Erdreich Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Kältemittel gibt die Wärme an das Heizsystem des Hauses ab",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 5470.515,
+            "prompt_per_token_ms": 3.4933045977011496,
+            "prompt_per_second": 286.26189673184336,
+            "predicted_n": 64,
+            "predicted_ms": 3128.478,
+            "predicted_per_token_ms": 49.65838095238095,
+            "predicted_per_second": 20.137587670426324
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "backend": "ramona",
+          "elapsed_s": 0.075,
+          "audio_s": 3.472,
+          "first_audio_s": 0.026,
+          "rtf": 0.022
+        },
+        "tts_samples": [
+          {
+            "backend": "ramona",
+            "elapsed_s": 1.041,
+            "audio_s": 3.232,
+            "first_audio_s": 0.99,
+            "rtf": 0.322
+          },
+          {
+            "backend": "ramona",
+            "elapsed_s": 0.085,
+            "audio_s": 3.088,
+            "first_audio_s": 0.032,
+            "rtf": 0.028
+          },
+          {
+            "backend": "ramona",
+            "elapsed_s": 0.075,
+            "audio_s": 3.472,
+            "first_audio_s": 0.026,
+            "rtf": 0.022
+          }
+        ],
+        "peak_total_vram_mib": 11140.5
+      },
+      "notes": [
+        "Ramona (Piper, de_DE-ramona-low) läuft auf thinkthing; Orpheus-LLM und Wyoming sind für dieses Profil gestoppt.",
+        "Alle 65 Schichten auf GPU; 65.536 Kontext, q8 KV, Batch 512/256.",
+        "FIT_TARGET=1024 hält bei der gemessenen Textaufgabe 1,1 GiB tatsächliche VRAM-Reserve.",
+        "131.072 Kontext führte zu CPU-Offloading und nur 1,35 Tokens/s; deshalb nicht gewählt."
+      ],
+      "voice": "ramona",
+      "previous_measurements_with_orpheus": {
         "memory": {
           "process_vram_mib": 7603.3,
           "total_vram_mib": 11128.2,
@@ -552,10 +631,7 @@
             "first_audio_s": 0.587
           }
         ]
-      },
-      "notes": [
-        "Partial CPU offload is necessary alongside Orpheus; slower than full GPU."
-      ]
+      }
     },
     "Qwen3-14B-Q4_K_M.gguf": {
       "settings": {

@@ -46,10 +46,27 @@ class ModelControl:
         with self.lock:
             return {'models': self.catalog(), 'active': active, 'ready': ready,
                     'status': self.state if self.state != 'bereit' or ready else 'nicht bereit',
-                    'requested': self.requested, 'error': self.error}
+                    'requested': self.requested, 'error': self.error,
+                    'voice': self.voice(self.requested if self.state in ('lädt', 'stellt wieder her') else active)}
+
+    def voice(self, model):
+        profiles = self.root / 'profiles/model-settings.json'
+        data = json.loads(profiles.read_text()) if profiles.exists() else {}
+        voice = data.get('models', {}).get(model, {}).get('voice', 'orpheus')
+        if voice not in ('ramona', 'orpheus'):
+            raise ValueError('Unbekannte Stimme im Modellprofil')
+        return voice
+
+    def prepare_services(self, model):
+        # Das alte LLM zuerst freigeben: auch die Rückkehr zu Orpheus muss passen.
+        self.systemctl('stop', 'llama-server.service')
+        if self.voice(model) == 'ramona':
+            self.systemctl('stop', 'wyoming-orpheus.service', 'orpheus-llm.service')
+        else:
+            self.systemctl('start', 'orpheus-llm.service', 'wyoming-orpheus.service')
 
     def check_idle(self):
-        for port in (8080, 8082):
+        for port in ((8080,) if self.voice(self.status()['active']) == 'ramona' else (8080, 8082)):
             with urllib.request.urlopen(f'http://127.0.0.1:{port}/slots', timeout=2) as response:
                 slots = json.load(response)
             if not isinstance(slots, list) or not slots or any(
@@ -88,6 +105,10 @@ class ModelControl:
                 with urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2) as response:
                     healthy = json.load(response).get('status') == 'ok'
                 if healthy and Path(self.props()['model_path']).name == model:
+                    if self.voice(model) == 'orpheus':
+                        with urllib.request.urlopen('http://127.0.0.1:8082/health', timeout=2) as response:
+                            if json.load(response).get('status') != 'ok':
+                                continue
                     return
             except Exception:
                 pass
@@ -135,6 +156,8 @@ class ModelControl:
     def change(self, model):
         previous = self.dropin.read_bytes() if self.dropin.exists() else None
         old_model = self.status()['active']
+        with self.lock:
+            self.state, self.requested = 'lädt', model
         try:
             path = (self.root / 'models' / model).resolve()
             settings = self.settings(model)
@@ -144,6 +167,7 @@ class ModelControl:
                 f'Environment="{key}={self.quote(value)}"' for key, value in {'MODEL_PATH': path, **settings}.items()) + '\n')
             temporary.replace(self.dropin)
             self.systemctl('daemon-reload')
+            self.prepare_services(model)
             self.systemctl('restart', 'llama-server.service')
             self.wait_ready(path.name)
             with self.lock:
@@ -151,12 +175,14 @@ class ModelControl:
         except Exception:
             with self.lock:
                 self.state, self.error = 'stellt wieder her', 'Modellwechsel fehlgeschlagen; vorherige Einstellung wird wiederhergestellt'
+                self.requested = old_model
             try:
                 if previous is None:
                     self.dropin.unlink(missing_ok=True)
                 else:
                     self.dropin.write_bytes(previous)
                 self.systemctl('daemon-reload')
+                self.prepare_services(old_model)
                 self.systemctl('restart', 'llama-server.service')
                 self.wait_ready(old_model)
                 with self.lock:

@@ -1,4 +1,4 @@
-# Modellprofile mit Orpheus
+# Modellprofile und Stimmen
 
 `model-settings.json` enthaelt die gemessenen Einstellungen fuer die
 Modellauswahl in Home Assistant. `power/model_control.py` liest fuer jeden
@@ -7,7 +7,9 @@ bleibt damit ebenso waehlbar wie Qwen3.8; jeder Wechsel setzt auch Kontext,
 Batch, Microbatch und GPU-Speicherbudget passend zum Modell.
 
 Gemessen auf RX 6700 XT mit 11,98 GiB VRAM und Ryzen 9 3900X mit 31,25 GiB
-RAM, llama.cpp b10741. Orpheus, Wyoming und der Desktop bleiben aktiv.
+RAM, llama.cpp b10741. Der Desktop bleibt aktiv. Alle Profile außer Qwen3.8
+IQ2_S wurden mit Orpheus gemessen. IQ2_S verwendet Ramona (Piper) auf thinkthing
+und stoppt beide Orpheus-Dienste auf der Workstation, auch im Benchmark.
 Die gemessenen Profile verwenden einen Slot, q8_0 fuer beide KV-Caches und
 deaktivierte HIP-Graphs. Auch Orpheus verwendet GPU-Offloading und deaktivierte
 HIP-Graphs. Ein langer Audiostart wurde in der ersten Messreihe beobachtet;
@@ -47,7 +49,16 @@ voice/.venv/bin/python3 scripts/tune_model_profiles.py \
 
 Dabei werden Modelle seriell neu geladen. Die Workstation-Steuerung wird
 voruebergehend pausiert, damit HA-Modellwechsel und Standby nicht dazwischenkommen.
-Orpheus bleibt verfuegbar. Der Runner entfernt abschliessend seinen temporaeren
+Dieser Runner kalibriert nur Orpheus-Profile; Ramona-Profile werden ausgelassen.
+Vor dem Start ein Orpheus-Profil auswählen. Der Runner entfernt abschliessend seinen temporaeren
 `zzz-tuning.conf`-Override und stellt das vorher geladene Modell wieder her.
 GGUF-Dateien bleiben lokal; neue Modelle erhalten zunaechst die konservativen
 Defaults und werden erst nach einer Messung mit einem eigenen Profil versehen.
+
+Das Feld `voice` außerhalb der Modelleinstellungen ist die Stimmenvorgabe:
+`ramona` erzwingt die lokale Piper-Stimme und gibt Orpheus-VRAM frei;
+fehlendes Feld oder `orpheus` aktiviert die Orpheus-Dienste und lässt die
+HA-Sprachauswahl gelten. Die bestehende gemeinsame Stimmenautomation wendet
+die Vorgabe auch während Modellvergleichen an. Bei Rückkehr zu einem anderen
+Modell gilt wieder die gewählte Stimme. systemd-ExecCondition verhindert,
+dass Orpheus beim Neustart neben dem großen IQ2_S-Profil startet.

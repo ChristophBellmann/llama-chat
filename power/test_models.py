@@ -82,6 +82,31 @@ class ModelTests(unittest.TestCase):
         self.control.state = 'lädt'
         self.assertEqual(self.control.start('neu.gguf')[0], 409)
 
+    def test_ramona_stops_orpheus_and_returns_to_it_after_failed_load(self):
+        (self.root / 'profiles').mkdir()
+        (self.root / 'profiles/model-settings.json').write_text(json.dumps({
+            'version': 1, 'models': {'neu.gguf': {'voice': 'ramona'}}}))
+        self.control.wait_ready.side_effect = [RuntimeError('Ladefehler'), None]
+        self.control.change('neu.gguf')
+        calls = [call.args for call in self.control.systemctl.call_args_list]
+        self.assertIn(('stop', 'wyoming-orpheus.service', 'orpheus-llm.service'), calls)
+        self.assertIn(('start', 'orpheus-llm.service', 'wyoming-orpheus.service'), calls)
+        self.assertLess(calls.index(('stop', 'llama-server.service')),
+                        calls.index(('stop', 'wyoming-orpheus.service', 'orpheus-llm.service')))
+
+    def test_ramona_does_not_require_stopped_orpheus_slots(self):
+        (self.root / 'profiles').mkdir()
+        (self.root / 'profiles/model-settings.json').write_text(json.dumps({
+            'version': 1, 'models': {'alt.gguf': {'voice': 'ramona'}}}))
+        response = Mock()
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock()
+        with patch('power.model_control.urllib.request.urlopen', return_value=response) as opened, patch(
+                'power.model_control.json.load', return_value=[{'is_processing': False}]):
+            self.control.check_idle()
+        self.assertEqual(opened.call_count, 1)
+        self.assertIn(':8080/', opened.call_args.args[0])
+
     def test_busy_slot_never_restarts_service(self):
         response = Mock()
         response.__enter__ = Mock(return_value=response)

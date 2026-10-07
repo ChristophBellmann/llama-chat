@@ -2847,5 +2847,442 @@
   },
   "previous_started": "2026-10-07T11:18:49.360032+02:00",
   "restored": true,
-  "finished": "2026-10-07T11:53:52.203656+02:00"
+  "finished": "2026-10-07T11:53:52.203656+02:00",
+  "ramona_iq2_s": {
+    "model": "Qwen3.8-27B-UD-IQ2_S.gguf",
+    "method": "Orpheus and Wyoming stopped, Piper Ramona on thinkthing CPU; ~1566 token input, max64 output, q8 KV, disabled HIP graphs. Allocated context measured, no full-context quality test.",
+    "trials": [
+      {
+        "settings": {
+          "GPU_LAYERS": "auto",
+          "CTX": 32768,
+          "PARALLEL": 1,
+          "BATCH_SIZE": 512,
+          "UBATCH_SIZE": 256,
+          "CACHE_TYPE_K": "q8_0",
+          "CACHE_TYPE_V": "q8_0",
+          "LLAMA_ARG_FIT": "on",
+          "LLAMA_ARG_FIT_TARGET": 2048,
+          "GGML_CUDA_DISABLE_GRAPHS": 1,
+          "LLAMA_ARG_LOG_VERBOSITY": 4
+        },
+        "load_s": 4.46,
+        "allocation": {
+          "gpu_layers": 65,
+          "total_layers": 65,
+          "kv_gpu_mib": 1088.0,
+          "cpu_model_buffer_mib": 397.85,
+          "cpu_tensor_overrides": false
+        },
+        "memory": {
+          "process_vram_mib": 9564.3,
+          "total_vram_mib": 9905.1,
+          "capacity_mib": 12272.0,
+          "rss_mib": 1498.7,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 28610.8,
+          "evicted_vram_mib": 0.0
+        },
+        "peak_total_vram_mib": 9911.6,
+        "short_chat": {
+          "seconds": 0.747,
+          "answer": "Paris",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 26,
+            "prompt_ms": 694.825,
+            "prompt_per_token_ms": 26.724038461538463,
+            "prompt_per_second": 37.419494117223756,
+            "predicted_n": 2,
+            "predicted_ms": 49.688,
+            "predicted_per_token_ms": 49.688,
+            "predicted_per_second": 20.125583641925616
+          },
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 26,
+            "total_tokens": 28,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "warmup_chat": {
+          "seconds": 8.799,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Grundwasser oder dem Erdreich Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Kältemittel gibt die Wärme an das Heizsystem des Hauses ab",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 5471.396,
+            "prompt_per_token_ms": 3.4938671775223495,
+            "prompt_per_second": 286.2158030601331,
+            "predicted_n": 64,
+            "predicted_ms": 3132.089,
+            "predicted_per_token_ms": 49.71569841269841,
+            "predicted_per_second": 20.1143709517833
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "chat": {
+          "seconds": 8.659,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Grundwasser oder dem Erdreich Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Kältemittel gibt die Wärme an das Heizsystem des Hauses ab",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 5516.248,
+            "prompt_per_token_ms": 3.522508301404853,
+            "prompt_per_second": 283.8886141449768,
+            "predicted_n": 64,
+            "predicted_ms": 3135.331,
+            "predicted_per_token_ms": 49.767158730158734,
+            "predicted_per_second": 20.093572257602148
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      },
+      {
+        "settings": {
+          "GPU_LAYERS": "auto",
+          "CTX": 65536,
+          "PARALLEL": 1,
+          "BATCH_SIZE": 512,
+          "UBATCH_SIZE": 256,
+          "CACHE_TYPE_K": "q8_0",
+          "CACHE_TYPE_V": "q8_0",
+          "LLAMA_ARG_FIT": "on",
+          "LLAMA_ARG_FIT_TARGET": 2048,
+          "GGML_CUDA_DISABLE_GRAPHS": 1,
+          "LLAMA_ARG_LOG_VERBOSITY": 4
+        },
+        "load_s": 7.5,
+        "allocation": {
+          "gpu_layers": 61,
+          "total_layers": 65,
+          "kv_gpu_mib": 2040.0,
+          "cpu_model_buffer_mib": 800.6,
+          "cpu_tensor_overrides": false
+        },
+        "memory": {
+          "process_vram_mib": 10298.2,
+          "total_vram_mib": 10635.6,
+          "capacity_mib": 12272.0,
+          "rss_mib": 2086.6,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 28459.2,
+          "evicted_vram_mib": 0.0
+        },
+        "peak_total_vram_mib": 10645.5,
+        "short_chat": {
+          "seconds": 1.185,
+          "answer": "Paris",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 26,
+            "prompt_ms": 1048.97,
+            "prompt_per_token_ms": 40.345,
+            "prompt_per_second": 24.786218862312552,
+            "predicted_n": 2,
+            "predicted_ms": 132.211,
+            "predicted_per_token_ms": 132.211,
+            "predicted_per_second": 7.563667168389921
+          },
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 26,
+            "total_tokens": 28,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "warmup_chat": {
+          "seconds": 14.662,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft oder dem Grundwasser Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDie aufgewärmte Flüssigkeit gibt ihre Wärme an das Heizsystem ab.\nDas Kältemittel",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 6112.761,
+            "prompt_per_token_ms": 3.9034233716475097,
+            "prompt_per_second": 256.1853800598453,
+            "predicted_n": 64,
+            "predicted_ms": 8384.312,
+            "predicted_per_token_ms": 133.08431746031746,
+            "predicted_per_second": 7.514033351812289
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "chat": {
+          "seconds": 14.409,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft oder dem Grundwasser Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDie aufgewärmte Flüssigkeit gibt ihre Wärme an das Heizsystem ab.\nDas Kältemittel",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 6089.831,
+            "prompt_per_token_ms": 3.888780970625798,
+            "prompt_per_second": 257.1499931607297,
+            "predicted_n": 64,
+            "predicted_ms": 8312.317,
+            "predicted_per_token_ms": 131.94153968253966,
+            "predicted_per_second": 7.579114222905599
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      },
+      {
+        "settings": {
+          "GPU_LAYERS": "auto",
+          "CTX": 131072,
+          "PARALLEL": 1,
+          "BATCH_SIZE": 512,
+          "UBATCH_SIZE": 256,
+          "CACHE_TYPE_K": "q8_0",
+          "CACHE_TYPE_V": "q8_0",
+          "LLAMA_ARG_FIT": "on",
+          "LLAMA_ARG_FIT_TARGET": 2048,
+          "GGML_CUDA_DISABLE_GRAPHS": 1,
+          "LLAMA_ARG_LOG_VERBOSITY": 4
+        },
+        "load_s": 11.57,
+        "allocation": {
+          "gpu_layers": 43,
+          "total_layers": 65,
+          "kv_gpu_mib": 2992.0,
+          "cpu_model_buffer_mib": 2321.73,
+          "cpu_tensor_overrides": false
+        },
+        "memory": {
+          "process_vram_mib": 10339.9,
+          "total_vram_mib": 10686.2,
+          "capacity_mib": 12272.0,
+          "rss_mib": 4911.1,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 27151.2,
+          "evicted_vram_mib": 0.0
+        },
+        "peak_total_vram_mib": 10709.7,
+        "short_chat": {
+          "seconds": 4.299,
+          "answer": "Paris",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 26,
+            "prompt_ms": 3552.225,
+            "prompt_per_token_ms": 136.62403846153845,
+            "prompt_per_second": 7.31935617817002,
+            "predicted_n": 2,
+            "predicted_ms": 743.263,
+            "predicted_per_token_ms": 743.263,
+            "predicted_per_second": 1.3454187817771097
+          },
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 26,
+            "total_tokens": 28,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "warmup_chat": {
+          "seconds": 56.95,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft oder dem Grundwasser Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Kältemittel gibt die Wärme an das Heizsystem ab.\nDas System gibt die",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 9864.245,
+            "prompt_per_token_ms": 6.299007024265645,
+            "prompt_per_second": 158.7551809591104,
+            "predicted_n": 64,
+            "predicted_ms": 46915.465,
+            "predicted_per_token_ms": 744.6899206349206,
+            "predicted_per_second": 1.342840788213439
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "chat": {
+          "seconds": 56.189,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft oder dem Grundwasser Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Kältemittel gibt die Wärme an das Heizsystem ab.\nDas System gibt die",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 9433.642,
+            "prompt_per_token_ms": 6.024037037037037,
+            "prompt_per_second": 166.00163542351936,
+            "predicted_n": 64,
+            "predicted_ms": 46749.44,
+            "predicted_per_token_ms": 742.0546031746032,
+            "predicted_per_second": 1.3476097253785286
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      },
+      {
+        "settings": {
+          "GPU_LAYERS": "auto",
+          "CTX": 65536,
+          "PARALLEL": 1,
+          "BATCH_SIZE": 512,
+          "UBATCH_SIZE": 256,
+          "CACHE_TYPE_K": "q8_0",
+          "CACHE_TYPE_V": "q8_0",
+          "LLAMA_ARG_FIT": "on",
+          "LLAMA_ARG_FIT_TARGET": 1024,
+          "GGML_CUDA_DISABLE_GRAPHS": 1,
+          "LLAMA_ARG_LOG_VERBOSITY": 4
+        },
+        "load_s": 5.2,
+        "allocation": {
+          "gpu_layers": 65,
+          "total_layers": 65,
+          "kv_gpu_mib": 2176.0,
+          "cpu_model_buffer_mib": 397.85,
+          "cpu_tensor_overrides": false
+        },
+        "memory": {
+          "process_vram_mib": 10794.2,
+          "total_vram_mib": 11130.6,
+          "capacity_mib": 12272.0,
+          "rss_mib": 1515.9,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 28524.4,
+          "evicted_vram_mib": 0.0
+        },
+        "peak_total_vram_mib": 11140.5,
+        "short_chat": {
+          "seconds": 0.694,
+          "answer": "Paris",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 26,
+            "prompt_ms": 640.513,
+            "prompt_per_token_ms": 24.635115384615386,
+            "prompt_per_second": 40.59246260419383,
+            "predicted_n": 2,
+            "predicted_ms": 49.707,
+            "predicted_per_token_ms": 49.707,
+            "predicted_per_second": 20.1178908403243
+          },
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 26,
+            "total_tokens": 28,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "warmup_chat": {
+          "seconds": 8.79,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Grundwasser oder dem Erdreich Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Kältemittel gibt die Wärme an das Heizsystem des Hauses ab",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 5456.615,
+            "prompt_per_token_ms": 3.484428480204342,
+            "prompt_per_second": 286.9911107893813,
+            "predicted_n": 64,
+            "predicted_ms": 3135.566,
+            "predicted_per_token_ms": 49.770888888888884,
+            "predicted_per_second": 20.092066312748642
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "chat": {
+          "seconds": 8.607,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Grundwasser oder dem Erdreich Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Kältemittel gibt die Wärme an das Heizsystem des Hauses ab",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 5470.515,
+            "prompt_per_token_ms": 3.4933045977011496,
+            "prompt_per_second": 286.26189673184336,
+            "predicted_n": 64,
+            "predicted_ms": 3128.478,
+            "predicted_per_token_ms": 49.65838095238095,
+            "predicted_per_second": 20.137587670426324
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      }
+    ],
+    "tts_samples": [
+      {
+        "backend": "ramona",
+        "elapsed_s": 1.041,
+        "audio_s": 3.232,
+        "first_audio_s": 0.99,
+        "rtf": 0.322
+      },
+      {
+        "backend": "ramona",
+        "elapsed_s": 0.085,
+        "audio_s": 3.088,
+        "first_audio_s": 0.032,
+        "rtf": 0.028
+      },
+      {
+        "backend": "ramona",
+        "elapsed_s": 0.075,
+        "audio_s": 3.472,
+        "first_audio_s": 0.026,
+        "rtf": 0.022
+      }
+    ]
+  }
 }

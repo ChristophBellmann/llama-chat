@@ -19,9 +19,9 @@ except ImportError:
     from model_benchmark import ModelBenchmark
 
 
-def activity():
+def activity(voice='orpheus'):
     reasons = []
-    for port in (8080, 8082):
+    for port in ((8080,) if voice == 'ramona' else (8080, 8082)):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/slots", timeout=2) as response:
                 slots = json.load(response)
@@ -84,6 +84,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
         self.close_connection = True
 
+    def voice_policy(self):
+        model_control = getattr(self.server, 'models', None)
+        if isinstance(model_control, ModelControl):
+            return model_control.status()['voice']
+        return 'orpheus'
+
     def do_GET(self):
         if not self.authorized():
             self.reply(403, {"error": "Nicht erlaubt"})
@@ -92,7 +98,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/benchmark":
             self.reply(200, self.server.benchmark.status())
         elif self.path == "/status":
-            self.reply(200, activity())
+            self.reply(200, activity(self.voice_policy()))
         else:
             self.reply(404, {"error": "Unbekannter Pfad"})
 
@@ -145,7 +151,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if getattr(getattr(self.server, "models", None), "benchmark_active", False):
                 self.reply(409, {"error": "Modellvergleich läuft"})
                 return
-            state = activity()
+            state = activity(self.voice_policy())
             if self.path == "/suspend-idle" and (
                 state["desktop_idle_seconds"] is None or state["desktop_idle_seconds"] < 1800
             ):
