@@ -29,7 +29,7 @@ class BenchmarkTests(unittest.TestCase):
         previous = self.control.dropin.read_bytes()
         def change(model):
             self.control.dropin.write_bytes(b'andere Einstellung')
-            self.control.props.return_value = {'model_path': model}
+            self.control.props.return_value = {'model_path': model, 'default_generation_settings': {'n_ctx': 2048}}
             self.control.state = 'Fehler' if model == 'neu.gguf' else 'bereit'
         self.control.change = change
         sample = {'ttft_s': 0.5, 'total_s': 2, 'tokens_s': 20, 'tokens': 40}
@@ -42,6 +42,7 @@ class BenchmarkTests(unittest.TestCase):
         self.assertTrue(self.bench.data['restored'])
         self.assertFalse(self.control.benchmark_active)
         self.assertEqual(self.bench.data['results'][1]['ttft_s'], 0.5)
+        self.assertEqual(self.bench.data['results'][1]['context_tokens'], 2048)
         self.control.wait_ready.assert_called_once_with('alt.gguf')
 
     def test_cancellation_restores_original_without_measuring(self):

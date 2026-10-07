@@ -167,7 +167,8 @@ Median-Gesamtdauer und Median-Token/s. Der feste deutsche Textprompt erzeugt
 höchstens 96 Token, mit Temperatur 0 und deaktiviertem Prompt-Cache. Die Ladezeit
 ist eine Einzelmessung. AMD-sysfs wird alle 100 ms abgetastet; der VRAM-Wert ist
 der höchste insgesamt belegte Speicher einschließlich Desktop und Orpheus.
-Die wirksamen Einstellungen und die drei Einzelmessungen werden mit gespeichert.
+Die Profilwerte, der vom Server gemeldete Kontext und die drei Einzelmessungen
+werden mit gespeichert. Auto-Fit kann einen angeforderten Kontext verkleinern.
 Diese Textaufgabe bewertet keine Werkzeugqualität und keine Spracherkennung.
 Andere direkte Llama-Clients währenddessen pausieren; GPU-Nebenlast beeinflusst
 belegte Speicherwerte und Geschwindigkeit.

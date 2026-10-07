@@ -197,6 +197,7 @@ class ModelBenchmark:
                     if control.state != 'bereit' or control.status()['active'] != model:
                         raise RuntimeError(control.error or 'Modell nicht geladen')
                     row['load_s'] = round(time.monotonic() - started, 2)
+                    row['context_tokens'] = control.props().get('default_generation_settings', {}).get('n_ctx')
                     peak, sampler_stop = [gpu_memory()['used_mib']], threading.Event()
                     def sample():
                         while not sampler_stop.wait(0.1):
