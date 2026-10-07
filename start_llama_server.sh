@@ -14,18 +14,21 @@ BIN_DIR="${LLAMA_BIN_DIR:-$ROOT_DIR/llama.cpp-b10741/build/bin}"
 # Ueberschreibbar per Env, damit die Unit ein Modell festnageln kann, ohne dass
 # das Textchat-Profil in profiles/default.ini es mitzieht:
 #   systemctl --user set-environment MODEL_PATH=...   oder Drop-in mit Environment=
-MODEL_PATH="${MODEL_PATH:-$ROOT_DIR/models/gemma-4-12B-it-qat-UD-Q4_K_XL.gguf}"
+MODEL_PATH="${MODEL_PATH:-$ROOT_DIR/models/Qwen3.8-27B-UD-IQ2_XXS.gguf}"
 MODEL_ALIAS="${MODEL_ALIAS:-locales_llm}"
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8080}"
-CTX="${CTX:-32768}"
+CTX="${CTX:-8192}"
 GPU_LAYERS="${GPU_LAYERS:--1}"
 CACHE_TYPE_K="${CACHE_TYPE_K:-q8_0}"
 CACHE_TYPE_V="${CACHE_TYPE_V:-q8_0}"
 FLASH_ATTN="${FLASH_ATTN:-on}"
-BATCH_SIZE="${BATCH_SIZE:-2048}"
-UBATCH_SIZE="${UBATCH_SIZE:-512}"
-PARALLEL="${PARALLEL:-2}"
+BATCH_SIZE="${BATCH_SIZE:-512}"
+UBATCH_SIZE="${UBATCH_SIZE:-256}"
+PARALLEL="${PARALLEL:-1}"
+# Qwen3.8 IQ2_S hing mit HIP-Graphs auf gfx1031 bei laengeren Anfragen.
+# IQ2_S und IQ2_XXS sind mit deaktivierten GPU-Graphs getestet.
+export GGML_CUDA_DISABLE_GRAPHS="${GGML_CUDA_DISABLE_GRAPHS:-1}"
 REASONING_BUDGET="${REASONING_BUDGET:-0}"
 # --reasoning-budget ist bei den qwen35-Modellen wirkungslos (getestet auf b10741:
 # 5,2 s mit und ohne, content teils leer). Nur das hier schaltet Thinking wirklich ab.

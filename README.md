@@ -54,11 +54,13 @@ Default:
 Server:      llama-server (systemd user service)
 API:         http://0.0.0.0:8080/v1
 Model alias: locales_llm
-Modell:      models/Qwen3.5-9B-Q4_K_M.gguf
-Kontext:     32768
+Modell:      models/Qwen3.8-27B-UD-IQ2_XXS.gguf
+Kontext:     8192
 Flash-Attn:  on
-Slots:       2 (parallel requests, 16384 tokens pro Slot bei 32768 Kontext)
-Batch:       2048 / 512
+Slots:       1
+Batch:       512 / 256
+KV-Cache:    q8_0 / q8_0
+GPU-Graphs:  deaktiviert (GGML_CUDA_DISABLE_GRAPHS=1)
 ```
 
 Profil-Wechsel (für Router-Modus):
@@ -70,6 +72,13 @@ Profil-Wechsel (für Router-Modus):
 ```
 
 Verfügbare Profile in `profiles/*.ini`. Jedes definiert Modell, Kontext, Batch und Parallelität. Der systemd-Dienst lädt direkt `start_llama_server.sh` ohne Profil.
+
+Qwen3.8 IQ2_XXS und Orpheus laufen zusammen auf der RX 6700 XT vollständig
+mit ihren Modellschichten auf GPU. Gemessen am 07.10.2026: Qwen 7,35 GiB
+Prozess-VRAM und 22,1 Tokens/s, Orpheus 2,63 GiB. Mit Desktop sind etwa
+10,68 von 11,98 GiB belegt. Orpheus erzeugt im warmen Streaming-Test
+3,84 Sekunden Audio in 3,68 Sekunden; erster Ton nach 0,59 Sekunden.
+Der [Modellvergleich](models/README.md) beschreibt die Einstellungen und Grenzen.
 
 ---
 

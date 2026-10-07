@@ -28,6 +28,8 @@ if [[ ! -f "$INI" ]]; then
 fi
 
 export LD_LIBRARY_PATH="$BIN_DIR:${LD_LIBRARY_PATH:-}"
+# Gleicher gfx1031-Workaround wie im direkten Server-Starter.
+export GGML_CUDA_DISABLE_GRAPHS="${GGML_CUDA_DISABLE_GRAPHS:-1}"
 
 # Ab llama.cpp b10741 werden host/port aus der ini ignoriert (der Router bindet
 # sonst auf 127.0.0.1:8080). Deshalb hier explizit per CLI setzen.

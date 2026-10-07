@@ -10,7 +10,9 @@ Hinweis:
 
 | Modell | Größe | Quant | VRAM | Empfohlen für |
 |---|---|---|---|---|
-| `gemma-4-12B-it-qat-UD-Q4_K_XL` | 6,2 GB | Q4_0 (QAT) | 8,2 GB | **Default**: Textchat, Home-Automation |
+| `Qwen3.8-27B-UD-IQ2_XXS` | 6,77 GiB | IQ2_XXS | 7,35 GiB | **Default**: zusammen mit Orpheus auf 12 GiB GPU |
+| `Qwen3.8-27B-UD-IQ2_S` | 7,80 GiB | IQ2_S | 8,38 GiB | Weniger starke Quantisierung, knappere VRAM-Reserve |
+| `gemma-4-12B-it-qat-UD-Q4_K_XL` | 6,2 GB | Q4_0 (QAT) | 8,2 GB | Alternative: Textchat, Home-Automation |
 | `Qwen3.5-9B-Q4_K_M` | 5,3 GB | Q4_K_M | 6,5 GB | Schnellste Alternative, groesste VRAM-Reserve |
 | `Dirk-Qwen3.8-27B-UD-IQ3_XXS` | 10,2 GB | IQ3_XXS | 11,5 GB | Nur mit llama.cpp >= b10741, VRAM zu 96 % voll |
 | `Qwen3.6-35B-A3B-UD-IQ2_M` | 11 GB | IQ2_M (MoE) | ~12 GB | Beste Qualität, 1–2 User, knapper VRAM |
@@ -18,6 +20,45 @@ Hinweis:
 | `qwen35-4b-same-gguf-fast-Q4_K_M` | 2,7 GB | Q4_K_M | ~4 GB | Minimalistisch, schnell |
 | `Loxa-3B-Q4_K_M` | 1,9 GB | Q4_K_M | ~3 GB | Voice-Fallback, einfache Tasks |
 | `voice/Qwen2.5-7B-Instruct-Q4_K_M` | 4,4 GB | Q4_K_M | ~6 GB | Voice Reply-LLM (Port 8081) |
+
+## Qwen3.8 mit Orpheus auf GPU (07.10.2026)
+
+Aktueller Default in `start_llama_server.sh` und `profiles/default.ini` ist
+`Qwen3.8-27B-UD-IQ2_XXS.gguf` von
+[Unsloth](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF).
+Die GGUF-Dateien bleiben lokal und werden nicht mit Git verteilt.
+
+Gemessen auf RX 6700 XT (11,98 GiB), llama.cpp b10741, 8.192 Kontext-Tokens,
+ein Slot, Batch 512 / Microbatch 256, Flash Attention, KV-Cache q8_0 / q8_0,
+Thinking aus. Orpheus bleibt auf GPU. Alle Modellschichten wurden auf GPU
+geladen; `amd-evicted-vram` meldete nach den Chat-Tests 0 KiB.
+Der normale CPU-Puffer fuer Token-Embeddings bleibt bestehen.
+
+| Modell | Datei | Prozess-VRAM | Generierung | VRAM gesamt mit Orpheus und Desktop |
+| --- | ---: | ---: | ---: | ---: |
+| `Qwen3.8-27B-UD-IQ2_S` | 7,80 GiB | 8,38 GiB | 20,5 Tokens/s | 11,71 GiB |
+| `Qwen3.8-27B-UD-IQ2_XXS` | 6,77 GiB | 7,35 GiB | 22,1 Tokens/s | 10,68 GiB |
+
+Server-Testfrage: "Erklaere auf Deutsch in drei Saetzen, warum der Himmel
+blau ist." Mit XXS 80 Ausgabe-Tokens in 4,24 s kalt bzw. 3,91 s mit
+Prompt-Cache; mit IQ2_S 78 Tokens in 4,43 s bzw. 4,17 s. Beide Antworten
+waren korrekt, ebenso `7 * 8 = 56`. Das ist keine umfassende Qualitaetsevaluation.
+
+**GPU-Graphs deaktivieren:** IQ2_S blieb bei der laengeren Anfrage wiederholt
+haengen. Nach `GGML_CUDA_DISABLE_GRAPHS=1` funktionierten laengere,
+wiederholte und andere Anfragen. Beide Starter exportieren deshalb dieses
+Flag; auch XXS wurde mit diesem Workaround gemessen.
+
+Orpheus belegt 2,63 GiB Prozess-VRAM. Im warmen Streaming-Test mit XXS:
+3,84 s Audio in 3,68 s (RTF 0,96), erster Ton nach 0,59 s. Auf CPU brauchte
+derselbe Testsatz rund 23 s fuer 3,75 s Audio (RTF 6,13).
+
+Der aktive systemd-Dienst nutzt lokale Overrides in
+`~/.config/systemd/user/llama-server.service.d/model.conf` und
+`~/.config/systemd/user/orpheus-llm.service.d/gpu.conf`. Die Startskript-Defaults
+bilden nun dieselben Modell-, Kontext- und Batch-Einstellungen ab. Fuer
+Orpheus muessen lokale Overrides `GPU_LAYERS=-1` und GPU-Offloading erlauben;
+`LLAMA_ARG_DEVICE=none` wuerde es weiterhin auf CPU halten.
 
 ## Thinking / Reaktionszeit
 
@@ -57,9 +98,9 @@ Server-Roundtrips auf deutsche Kurzfragen.
 | `gemma-4-12B-it-qat-UD-Q4_K_XL` | 6,24 GiB | 838 t/s | 39,5 t/s | 8,18 GiB | 0,41 s | 1,95 s |
 | `Dirk-Qwen3.8-27B-UD-IQ3_XXS` | 10,17 GiB | 287 t/s | 18,7 t/s | 11,49 GiB | 1,74 s | 4,51 s |
 
-**Ergebnis:** Reiner Durchsatzsieger ist `Qwen3.5-9B-Q4_K_M` (beim Generieren
+**Damals:** Reiner Durchsatzsieger war `Qwen3.5-9B-Q4_K_M` (beim Generieren
 27 % schneller als gemma-4-12B, 2,7x schneller als das 27B, groesste
-VRAM-Reserve). Als Default eingestellt ist trotzdem
+VRAM-Reserve). Als Default eingestellt war damals
 `gemma-4-12B-it-qat-UD-Q4_K_XL`: der Latenzunterschied ist im Textchat mit
 kleinem Kontext klein (0,41 s vs. 0,38 s kurze Antwort, 1,95 s vs. 1,64 s bei
 ~70 Tokens), und das Deutsch war im Test die runde Formulierung wert. Mit
@@ -191,7 +232,7 @@ erreichbar ist.
 Die Profile in `profiles/*.ini` legen fest, welches Modell mit welchen Parametern geladen wird.
 
 ```bash
-./run_profile.sh              # lädt profiles/default.ini (derzeit gemma-4-12B-it-qat)
+./run_profile.sh              # lädt profiles/default.ini (Qwen3.8-27B-UD-IQ2_XXS)
 ./run_profile.sh multi-user   # identisch zu default
 ./run_profile.sh speed        # kurzer Kontext, schneller
 ./run_profile.sh stable       # größerer Kontext, stabil
