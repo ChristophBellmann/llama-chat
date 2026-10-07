@@ -1,0 +1,877 @@
+{
+  "version": 1,
+  "defaults": {
+    "GPU_LAYERS": "auto",
+    "CTX": 8192,
+    "PARALLEL": 1,
+    "BATCH_SIZE": 512,
+    "UBATCH_SIZE": 256,
+    "CACHE_TYPE_K": "q8_0",
+    "CACHE_TYPE_V": "q8_0",
+    "LLAMA_ARG_FIT": "on",
+    "LLAMA_ARG_FIT_TARGET": 2048,
+    "GGML_CUDA_DISABLE_GRAPHS": 1,
+    "LLAMA_ARG_LOG_VERBOSITY": 4
+  },
+  "models": {
+    "Qwen3.5-9B-Q4_K_M.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 65536,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 1024,
+        "UBATCH_SIZE": 512,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 2048,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 6564.0,
+          "total_vram_mib": 10072.4,
+          "capacity_mib": 12272.0,
+          "rss_mib": 1236.3,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 25950.4,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 33,
+          "total_layers": 33,
+          "kv_gpu_mib": 1088.0,
+          "cpu_model_buffer_mib": 545.62,
+          "cpu_tensor_overrides": false
+        },
+        "chat": {
+          "seconds": 3.086,
+          "answer": "Eine Wärmepumpe entzieht der Umgebung (Luft, Erde oder Wasser) kostenlose Wärmeenergie. Diese Energie wird über einen Kältemittelkreislauf komprimiert und dabei auf eine hohe Temperatur gebracht. Anschließend wird die heiße Wärme über ein Heizsystem an das Haus abgegeben. Der Prozess wird",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 1789.098,
+            "prompt_per_token_ms": 1.142463601532567,
+            "prompt_per_second": 875.3014088663673,
+            "predicted_n": 64,
+            "predicted_ms": 1289.848,
+            "predicted_per_token_ms": 20.473777777777777,
+            "predicted_per_second": 48.84296444232189
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.718,
+          "audio_s": 3.669,
+          "rtf": 1.013,
+          "first_audio_s": 0.598
+        },
+        "tts_samples": [
+          {
+            "elapsed_s": 3.43,
+            "audio_s": 3.413,
+            "rtf": 1.005,
+            "first_audio_s": 0.603
+          },
+          {
+            "elapsed_s": 3.718,
+            "audio_s": 3.669,
+            "rtf": 1.013,
+            "first_audio_s": 0.598
+          }
+        ]
+      },
+      "notes": []
+    },
+    "Loxa-3B-Q4_K_M.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 65536,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 1024,
+        "UBATCH_SIZE": 512,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 1024,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 6237.2,
+          "total_vram_mib": 9734.5,
+          "capacity_mib": 12272.0,
+          "rss_mib": 746.1,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 24816.2,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 29,
+          "total_layers": 29,
+          "kv_gpu_mib": 3808.0,
+          "cpu_model_buffer_mib": 308.23
+        },
+        "chat": {
+          "seconds": 1.649,
+          "answer": "Eine Wärmepumpe ist ein Gerät, das Wärme aus der Umgebung aufnimmt und in das Haus leitet. Sie verwendet ein Flüssigkeitskraftstoff, der bei niedrigen Temperaturen flüssig wird und bei höheren Temperaturen gasförm",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 2071,
+            "prompt_ms": 988.816,
+            "prompt_per_token_ms": 0.47745823273780785,
+            "prompt_per_second": 2094.4240384459795,
+            "predicted_n": 64,
+            "predicted_ms": 649.127,
+            "predicted_per_token_ms": 10.303603174603174,
+            "predicted_per_second": 97.05342714137603
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 2071,
+            "total_tokens": 2135,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.375,
+          "audio_s": 3.328,
+          "rtf": 1.014,
+          "first_audio_s": 0.601
+        }
+      },
+      "notes": []
+    },
+    "qwen35-4b-same-gguf-fast-Q4_K_M.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 65536,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 1024,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 4334.1,
+          "total_vram_mib": 7831.4,
+          "capacity_mib": 12272.0,
+          "rss_mib": 917.3,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 24812.9,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 33,
+          "total_layers": 33,
+          "kv_gpu_mib": 1088.0,
+          "cpu_model_buffer_mib": 497.31
+        },
+        "chat": {
+          "seconds": 1.954,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Boden oder dem Grundwasser Wärmeenergie. Diese Energie wird durch einen Kompressor auf ein höheres Temperaturniveau gebracht. Anschließend wird die Wärme über ein Heizsystem im Haus verteilt. Der Prozess ist energieeffizient, da die elektrische",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 1101.378,
+            "prompt_per_token_ms": 0.7033065134099616,
+            "prompt_per_second": 1421.8551668909313,
+            "predicted_n": 64,
+            "predicted_ms": 848.525,
+            "predicted_per_token_ms": 13.468650793650793,
+            "predicted_per_second": 74.24648655019004
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.281,
+          "audio_s": 3.328,
+          "rtf": 0.986,
+          "first_audio_s": 0.588
+        }
+      },
+      "notes": []
+    },
+    "Loxa-3B-F16.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 16384,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 1024,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7376.1,
+          "total_vram_mib": 10873.4,
+          "capacity_mib": 12272.0,
+          "rss_mib": 1167.3,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 24925.5,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 29,
+          "total_layers": 29,
+          "kv_gpu_mib": 952.0,
+          "cpu_model_buffer_mib": 751.5
+        },
+        "chat": {
+          "seconds": 2.988,
+          "answer": "Eine Wärmepumpe ist ein Gerät, das Wärme aus der Umgebung aufnimmt und in ein Haus oder Gebäude transportiert. Sie verwendet eine Flüssigkeit, die sich bei niedrigen Temperaturen verdichtet und bei hohen Temperaturen sich aufbläst. Diese",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 2071,
+            "prompt_ms": 1640.69,
+            "prompt_per_token_ms": 0.7922211492032835,
+            "prompt_per_second": 1262.2737994380414,
+            "predicted_n": 64,
+            "predicted_ms": 1335.549,
+            "predicted_per_token_ms": 21.199190476190477,
+            "predicted_per_second": 47.171612572807135
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 2071,
+            "total_tokens": 2135,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.755,
+          "audio_s": 3.755,
+          "rtf": 1.0,
+          "first_audio_s": 0.592
+        }
+      },
+      "notes": []
+    },
+    "gemma-4-12B-it-qat-UD-Q4_K_XL.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 16384,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 1024,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7003.5,
+          "total_vram_mib": 10509.0,
+          "capacity_mib": 12272.0,
+          "rss_mib": 1336.0,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 24477.3,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 49,
+          "total_layers": 49,
+          "kv_gpu_mib": 348.5,
+          "cpu_model_buffer_mib": 540.0
+        },
+        "chat": {
+          "seconds": 3.845,
+          "answer": "Eine Wärmepumpe entzieht einer Quelle (z. B. Luft, Wasser oder Erde) Wärmeenergie. Durch einen Kompressor wird dieses Kältemittel unter hohem Druck stark verdichtet, wodurch die Temperatur steigt. Die gewonnene Wärme wird anschließend an das Heizsystem des Hauses abgegeben.",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1567,
+            "prompt_ms": 2140.717,
+            "prompt_per_token_ms": 1.3661244416081686,
+            "prompt_per_second": 731.9977372067397,
+            "predicted_n": 64,
+            "predicted_ms": 1694.103,
+            "predicted_per_token_ms": 26.89052380952381,
+            "predicted_per_second": 37.18782151970689
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1567,
+            "total_tokens": 1631,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.208,
+          "audio_s": 3.413,
+          "rtf": 0.94,
+          "first_audio_s": 0.6
+        }
+      },
+      "notes": []
+    },
+    "Qwen3.8-27B-UD-IQ2_XXS.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 8192,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 1024,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7585.3,
+          "total_vram_mib": 11083.9,
+          "capacity_mib": 12272.0,
+          "rss_mib": 1489.0,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 24228.3,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 65,
+          "total_layers": 65,
+          "kv_gpu_mib": 272.0,
+          "cpu_model_buffer_mib": 397.85
+        },
+        "chat": {
+          "seconds": 8.185,
+          "answer": "Eine Wärmepumpe entzieht der Umgebung oder dem Erdreich Wärmeenergie.\nSie komprimiert ein Kältemittel, um diese Energie zu verstärken.\nDas Kältemittel gibt die gewonnene Wärme an das Heizsystem ab.\nSo wird die Wärme im Haus verteilt und",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 5253.507,
+            "prompt_per_token_ms": 3.354729885057471,
+            "prompt_per_second": 298.0865924419631,
+            "predicted_n": 64,
+            "predicted_ms": 2923.173,
+            "predicted_per_token_ms": 46.39957142857143,
+            "predicted_per_second": 21.551923201261097
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.21,
+          "audio_s": 3.328,
+          "rtf": 0.965,
+          "first_audio_s": 0.598
+        }
+      },
+      "notes": []
+    },
+    "gemma-4-E4B-it-ultra-uncensored-heretic-Q8_0.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 131072,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 2048,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 6731.5,
+          "total_vram_mib": 10244.5,
+          "capacity_mib": 12272.0,
+          "rss_mib": 4127.8,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 25331.9,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 43,
+          "total_layers": 43,
+          "kv_gpu_mib": 1103.94,
+          "cpu_model_buffer_mib": 3536.0,
+          "cpu_tensor_overrides": false
+        },
+        "chat": {
+          "seconds": 2.3,
+          "answer": "Eine Wärmepumpe nutzt Energie aus der Umgebungsluft, dem Erdreich oder dem Wasser. Sie wandelt diese geringe Umweltenergie durch einen Kältemittelkreislauf in nutzbare Wärme um. Diese Wärme wird anschließend in das Heizsystem des Hauses geleitet. Dadurch kann das Haus effizient",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1563,
+            "prompt_ms": 948.607,
+            "prompt_per_token_ms": 0.606914267434421,
+            "prompt_per_second": 1647.679175886326,
+            "predicted_n": 64,
+            "predicted_ms": 1341.19,
+            "predicted_per_token_ms": 21.28873015873016,
+            "predicted_per_second": 46.973210357965684
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1563,
+            "total_tokens": 1627,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.359,
+          "audio_s": 3.499,
+          "rtf": 0.96,
+          "first_audio_s": 0.59
+        },
+        "tts_samples": [
+          {
+            "elapsed_s": 3.15,
+            "audio_s": 3.328,
+            "rtf": 0.946,
+            "first_audio_s": 0.606
+          },
+          {
+            "elapsed_s": 3.359,
+            "audio_s": 3.499,
+            "rtf": 0.96,
+            "first_audio_s": 0.59
+          }
+        ]
+      },
+      "notes": []
+    },
+    "Qwen3.8-27B-UD-IQ2_S.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 8192,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 2304,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7603.3,
+          "total_vram_mib": 11128.2,
+          "capacity_mib": 12272.0,
+          "rss_mib": 2758.6,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 24657.8,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 52,
+          "total_layers": 65,
+          "kv_gpu_mib": 221.0,
+          "cpu_model_buffer_mib": 1564.64,
+          "cpu_tensor_overrides": false
+        },
+        "chat": {
+          "seconds": 35.792,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft oder dem Grundwasser Wärmeenergie.\nDiese Energie wird durch ein Kältemittel auf ein höheres Temperaturniveau gebracht.\nDas erwärmte Medium gibt die Wärme an das Heizsystem des Hauses ab.\nSo wird die vorhandene",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 8118.133,
+            "prompt_per_token_ms": 5.183992975734355,
+            "prompt_per_second": 192.90149594740564,
+            "predicted_n": 64,
+            "predicted_ms": 27667.892,
+            "predicted_per_token_ms": 439.1728888888889,
+            "predicted_per_second": 2.2770075869892796
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.187,
+          "audio_s": 3.243,
+          "rtf": 0.983,
+          "first_audio_s": 0.587
+        },
+        "tts_samples": [
+          {
+            "elapsed_s": 3.349,
+            "audio_s": 3.499,
+            "rtf": 0.957,
+            "first_audio_s": 0.59
+          },
+          {
+            "elapsed_s": 3.187,
+            "audio_s": 3.243,
+            "rtf": 0.983,
+            "first_audio_s": 0.587
+          }
+        ]
+      },
+      "notes": [
+        "Partial CPU offload is necessary alongside Orpheus; slower than full GPU."
+      ]
+    },
+    "Qwen3-14B-Q4_K_M.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 8192,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 2048,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7448.3,
+          "total_vram_mib": 11018.9,
+          "capacity_mib": 12272.0,
+          "rss_mib": 2481.2,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 25929.8,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 33,
+          "total_layers": 41,
+          "kv_gpu_mib": 544.0,
+          "cpu_model_buffer_mib": 1974.34,
+          "cpu_tensor_overrides": false
+        },
+        "chat": {
+          "seconds": 9.713,
+          "answer": "Eine Wärmepumpe entzieht der Umgebung Wärme. Sie verdichtet diese Wärme und gibt sie in das Haus ab. Dabei wird elektrische Energie benötigt. Gut gedämmte Fenster reduzieren den Wärmeverlust.",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 2048,
+            "prompt_ms": 4527.775,
+            "prompt_per_token_ms": 2.21082763671875,
+            "prompt_per_second": 452.31929590140857,
+            "predicted_n": 60,
+            "predicted_ms": 5176.449,
+            "predicted_per_token_ms": 87.73642372881355,
+            "predicted_per_second": 11.397774806629025
+          },
+          "usage": {
+            "completion_tokens": 60,
+            "prompt_tokens": 2048,
+            "total_tokens": 2108,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.294,
+          "audio_s": 3.413,
+          "rtf": 0.965,
+          "first_audio_s": 0.588
+        },
+        "tts_samples": [
+          {
+            "elapsed_s": 3.848,
+            "audio_s": 3.925,
+            "rtf": 0.98,
+            "first_audio_s": 0.592
+          },
+          {
+            "elapsed_s": 3.294,
+            "audio_s": 3.413,
+            "rtf": 0.965,
+            "first_audio_s": 0.588
+          }
+        ]
+      },
+      "notes": [
+        "Partial CPU offload is necessary alongside Orpheus; slower than full GPU."
+      ]
+    },
+    "Dirk-Qwen3.8-27B-UD-IQ3_XXS.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 8192,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 2048,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7548.6,
+          "total_vram_mib": 11026.3,
+          "capacity_mib": 12272.0,
+          "rss_mib": 4971.4,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 25250.7,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 41,
+          "total_layers": 66,
+          "kv_gpu_mib": 170.0,
+          "cpu_model_buffer_mib": 3384.37,
+          "cpu_tensor_overrides": false
+        },
+        "chat": {
+          "seconds": 28.001,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Erdreich oder dem Grundwasser thermische Energie.\nEin Kältemittel verdampft dabei bei niedriger Temperatur und wird durch einen Kompressor auf ein höheres Druck- und Temperaturniveau gebracht.\nDie so gewonnene",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1720,
+            "prompt_ms": 8936.614,
+            "prompt_per_token_ms": 5.195705813953488,
+            "prompt_per_second": 192.4666322166315,
+            "predicted_n": 64,
+            "predicted_ms": 19058.467,
+            "predicted_per_token_ms": 302.51534920634924,
+            "predicted_per_second": 3.3056173930463557
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1720,
+            "total_tokens": 1784,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.28,
+          "audio_s": 3.499,
+          "rtf": 0.938,
+          "first_audio_s": 0.58
+        },
+        "tts_samples": [
+          {
+            "elapsed_s": 3.863,
+            "audio_s": 4.096,
+            "rtf": 0.943,
+            "first_audio_s": 0.58
+          },
+          {
+            "elapsed_s": 3.28,
+            "audio_s": 3.499,
+            "rtf": 0.938,
+            "first_audio_s": 0.58
+          }
+        ]
+      },
+      "notes": [
+        "Partial CPU offload is necessary alongside Orpheus; slower than full GPU."
+      ]
+    },
+    "Qwen3.6-35B-A3B-UD-IQ2_M.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 8192,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 2048,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7410.9,
+          "total_vram_mib": 10910.1,
+          "capacity_mib": 12272.0,
+          "rss_mib": 11479.8,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 26038.8,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 41,
+          "total_layers": 41,
+          "kv_gpu_mib": 85.0,
+          "cpu_model_buffer_mib": 10704.91,
+          "cpu_tensor_overrides": true
+        },
+        "chat": {
+          "seconds": 4.412,
+          "answer": "Die Wärmepumpe entzieht der Außenluft, dem Boden oder einem Grundwasserstrang thermische Energie. Ein Kältemittel verdampft bei niedrigen Temperaturen und nimmt dabei die Wärme auf. Durch einen Kompressor wird der Druck und damit die Temperatur des Kältemittels erhöht. Die",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 2976.123,
+            "prompt_per_token_ms": 1.9004616858237549,
+            "prompt_per_second": 526.1879297327429,
+            "predicted_n": 64,
+            "predicted_ms": 1430.89,
+            "predicted_per_token_ms": 22.712539682539685,
+            "predicted_per_second": 44.02854167685846
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 3.499,
+          "audio_s": 3.669,
+          "rtf": 0.954,
+          "first_audio_s": 0.574
+        },
+        "tts_samples": [
+          {
+            "elapsed_s": 3.235,
+            "audio_s": 3.413,
+            "rtf": 0.948,
+            "first_audio_s": 0.58
+          },
+          {
+            "elapsed_s": 3.499,
+            "audio_s": 3.669,
+            "rtf": 0.954,
+            "first_audio_s": 0.574
+          }
+        ]
+      },
+      "notes": [
+        "Partial CPU offload is necessary alongside Orpheus; slower than full GPU."
+      ]
+    },
+    "Qwen_Qwen3.6-27B-Q4_K_M.gguf": {
+      "settings": {
+        "GPU_LAYERS": "auto",
+        "CTX": 8192,
+        "PARALLEL": 1,
+        "BATCH_SIZE": 512,
+        "UBATCH_SIZE": 256,
+        "CACHE_TYPE_K": "q8_0",
+        "CACHE_TYPE_V": "q8_0",
+        "LLAMA_ARG_FIT": "on",
+        "LLAMA_ARG_FIT_TARGET": 2048,
+        "GGML_CUDA_DISABLE_GRAPHS": 1,
+        "LLAMA_ARG_LOG_VERBOSITY": 4
+      },
+      "measurements": {
+        "memory": {
+          "process_vram_mib": 7280.4,
+          "total_vram_mib": 10750.3,
+          "capacity_mib": 12272.0,
+          "rss_mib": 11397.2,
+          "process_swap_mib": 0.0,
+          "available_ram_mib": 26165.3,
+          "evicted_vram_mib": 0.0
+        },
+        "allocation": {
+          "gpu_layers": 25,
+          "total_layers": 65,
+          "kv_gpu_mib": 102.0,
+          "cpu_model_buffer_mib": 10002.78,
+          "cpu_tensor_overrides": false
+        },
+        "chat": {
+          "seconds": 33.951,
+          "answer": "Eine Wärmepumpe entzieht der Umgebungsluft, dem Erdreich oder dem Grundwasser kostenlose Umweltwärme.\nEin Kältemittel verdampft bei dieser niedrigen Temperatur und nimmt dabei die Wärmeenergie auf.\nDurch Kompression wird das Gas verdichtet, wodurch seine Temperatur stark anste",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 1566,
+            "prompt_ms": 10232.875,
+            "prompt_per_token_ms": 6.534402937420179,
+            "prompt_per_second": 153.03617018677548,
+            "predicted_n": 64,
+            "predicted_ms": 23714.113,
+            "predicted_per_token_ms": 376.4144920634921,
+            "predicted_per_second": 2.656645854727942
+          },
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 1566,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        "tts": {
+          "elapsed_s": 2.955,
+          "audio_s": 3.157,
+          "rtf": 0.936,
+          "first_audio_s": 0.583
+        },
+        "tts_samples": [
+          {
+            "elapsed_s": 3.729,
+            "audio_s": 3.669,
+            "rtf": 1.016,
+            "first_audio_s": 0.576
+          },
+          {
+            "elapsed_s": 2.955,
+            "audio_s": 3.157,
+            "rtf": 0.936,
+            "first_audio_s": 0.583
+          }
+        ]
+      },
+      "notes": [
+        "Partial CPU offload is necessary alongside Orpheus; slower than full GPU."
+      ]
+    }
+  }
+}

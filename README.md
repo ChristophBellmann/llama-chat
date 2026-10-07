@@ -80,6 +80,12 @@ Prozess-VRAM und 22,1 Tokens/s, Orpheus 2,63 GiB. Mit Desktop sind etwa
 3,84 Sekunden Audio in 3,68 Sekunden; erster Ton nach 0,59 Sekunden.
 Der [Modellvergleich](models/README.md) beschreibt die Einstellungen und Grenzen.
 
+Fuer die Modellauswahl in Home Assistant gibt es jetzt
+[gemessene Einstellungen pro Modell](profiles/README.md): Qwen3.5 bleibt
+waehlbar und bekommt sein eigenes Kontext-/Batch-Profil. Orpheus bleibt bei
+allen Profilen auf GPU. Die [aktuelle Ergebnistabelle](profiles/model-results.md)
+enthaelt auch die Speicherreserve und Sprachausgabezeit.
+
 ---
 
 ## 1.5 Linux Mint Programmstarter + Autostart

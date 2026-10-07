@@ -23,6 +23,12 @@ Hinweis:
 
 ## Qwen3.8 mit Orpheus auf GPU (07.10.2026)
 
+Die spaetere Kalibrierung aller vorhandenen Modelle mit Speicherreserve und
+Orpheus ist unter [Modellprofile](../profiles/README.md) dokumentiert.
+Die folgende IQ2-S/XXS-Gegenueberstellung zeigt den urspruenglichen Test mit
+vollstaendiger GPU-Auslagerung; das kalibrierte Profil fuer IQ2_S kann zur
+Einhaltung der Reserve CPU-Auslagerung verwenden.
+
 Aktueller Default in `start_llama_server.sh` und `profiles/default.ini` ist
 `Qwen3.8-27B-UD-IQ2_XXS.gguf` von
 [Unsloth](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF).
