@@ -11,6 +11,11 @@ import subprocess
 import threading
 import urllib.request
 
+try:
+    from .model_control import ModelControl
+except ImportError:
+    from model_control import ModelControl
+
 
 def activity():
     reasons = []
@@ -80,6 +85,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.authorized():
             self.reply(403, {"error": "Nicht erlaubt"})
+        elif self.path == "/models":
+            self.reply(200, self.server.models.status())
         elif self.path == "/status":
             self.reply(200, activity())
         else:
@@ -89,10 +96,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.authorized():
             self.reply(403, {"error": "Nicht erlaubt"})
             return
+        if self.path == "/models":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 2048:
+                    raise ValueError()
+                payload = json.loads(self.rfile.read(length))
+                model = payload.get("model")
+                if not isinstance(model, str):
+                    raise ValueError()
+            except (ValueError, AttributeError):
+                self.reply(400, {"error": "Ungültige Modellauswahl"})
+                return
+            with self.server.sleep_lock:
+                status, payload = self.server.models.start(model)
+            self.reply(status, payload)
+            return
         if self.path not in ("/suspend", "/suspend-idle"):
             self.reply(404, {"error": "Unbekannter Pfad"})
             return
         with self.server.sleep_lock:
+            if getattr(getattr(self.server, "models", None), "state", None) in ("lädt", "stellt wieder her"):
+                self.reply(409, {"error": "Modellwechsel läuft"})
+                return
             state = activity()
             if self.path == "/suspend-idle" and (
                 state["desktop_idle_seconds"] is None or state["desktop_idle_seconds"] < 1800
@@ -116,4 +142,5 @@ if __name__ == "__main__":
     server.ha_host = config["ha_host"]
     server.token = config["token"]
     server.sleep_lock = threading.Lock()
+    server.models = ModelControl()
     server.serve_forever()

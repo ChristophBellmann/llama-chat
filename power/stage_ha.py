@@ -47,6 +47,13 @@ def stage(target):
             "        entities:\n          - entity: script.workstation_aufwecken\n"
             "            name: Aufwecken\n          - entity: script.workstation_standby\n"
             "            name: Standby\n          - entity: input_boolean.workstation_automatisch_schlafen\n")
+    if "select.workstation_modell" not in dashboard:
+        dashboard = replace_once(dashboard,
+            "          - entity: input_boolean.workstation_automatisch_schlafen\n",
+            "          - entity: input_boolean.workstation_automatisch_schlafen\n"
+            "          - entity: select.workstation_modell\n            name: Modell laden\n"
+            "          - entity: sensor.workstation_geladenes_modell\n            name: Geladenes Modell\n"
+            "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n")
     # Erst schreiben, nachdem alle erwarteten Stellen geprüft wurden.
     router_path.write_text(router)
     docker_path.write_text(docker)
@@ -55,6 +62,7 @@ def stage(target):
     shutil.copyfile(source / "ha_router_power.py", target / "llm-router/ha_router_power.py")
     shutil.copyfile(source / "ha_test_router.py", target / "llm-router/tests/test_workstation_power.py")
     shutil.copyfile(source / "workstation_ha.yaml", target / "config/packages/workstation_power.yaml")
+    shutil.copyfile(source / "workstation_models_ha.yaml", target / "config/packages/workstation_models.yaml")
 
 
 if __name__ == "__main__":

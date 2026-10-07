@@ -1,0 +1,66 @@
+# Der bestehende Router verwahrt den Schlüssel und weckt nur bei Modellauswahl.
+rest:
+  - resource: http://127.0.0.1:11436/workstation/models
+    scan_interval: 10
+    timeout: 12
+    sensor:
+      - name: Workstation Modellstatus
+        unique_id: workstation_modellstatus
+        value_template: "{{ value_json.status }}"
+        json_attributes:
+          - models
+          - active
+          - ready
+          - requested
+          - error
+
+rest_command:
+  workstation_modell_laden:
+    url: http://127.0.0.1:11436/workstation/models
+    method: POST
+    content_type: application/json
+    payload: '{{ {"model": modell} | to_json }}'
+    timeout: 60
+
+template:
+  - select:
+      - name: Workstation Modell
+        unique_id: workstation_modell
+        icon: mdi:brain
+        availability: "{{ (state_attr('sensor.workstation_modellstatus', 'models') or []) | length > 0 }}"
+        state: "{{ state_attr('sensor.workstation_modellstatus', 'active') or 'unknown' }}"
+        options: "{{ state_attr('sensor.workstation_modellstatus', 'models') or [] }}"
+        select_option:
+          - action: rest_command.workstation_modell_laden
+            data:
+              modell: "{{ option }}"
+            response_variable: ergebnis
+          - if: "{{ ergebnis.status not in [200, 202] }}"
+            then:
+              - action: persistent_notification.create
+                data:
+                  notification_id: workstation_modell_fehler
+                  title: Workstation-Modell nicht gewechselt
+                  message: "{{ ergebnis.content }}"
+          - action: homeassistant.update_entity
+            target:
+              entity_id: sensor.workstation_modellstatus
+  - sensor:
+      - name: Workstation geladenes Modell
+        unique_id: workstation_geladenes_modell
+        icon: mdi:brain
+        state: "{{ state_attr('sensor.workstation_modellstatus', 'active') or 'unbekannt' }}"
+
+automation:
+  - id: workstation_modell_ladefehler
+    alias: Workstation-Modell Ladefehler melden
+    triggers:
+      - trigger: state
+        entity_id: sensor.workstation_modellstatus
+        to: Fehler
+    actions:
+      - action: persistent_notification.create
+        data:
+          notification_id: workstation_modell_fehler
+          title: Workstation-Modell Ladefehler
+          message: "{{ state_attr('sensor.workstation_modellstatus', 'error') }}"

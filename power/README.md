@@ -97,3 +97,52 @@ sudo rm /etc/sudoers.d/workstation-power
 
 HA-Paket und Dashboard-Karte entfernen, Router-Hooks zurücknehmen und erst
 nach Konfigurationsprüfung neu starten. Den bisherigen LLM-Fallback erhalten.
+
+## Modellauswahl in Home Assistant
+
+Das Dashboard **Sprachassistent → Workstation** enthält das Dropdown
+`select.workstation_modell`, das geladene Modell und den Wechselstatus.
+Die Liste kommt aus den tatsächlich vorhandenen `models/*.gguf` im
+Llama-Chat-Arbeitsverzeichnis. Symlinks werden dedupliziert; Modelle außerhalb
+von `models/` und die separaten Sprachmodelle in Unterordnern werden nicht
+angeboten. Neue Dateien erscheinen beim nächsten Statusabruf (zehn Sekunden).
+
+Die Auswahl weckt bei Bedarf über den bestehenden Router auf und startet
+nur `llama-server.service` neu. Alle Clients auf Port 8080 verwenden damit
+das ausgewählte Modell. Der Alias `locales_llm` bleibt bestehen. Die Auswahl
+ändert keinen HA-Sprach-Agenten; für die Workstation muss dort weiterhin
+`Local LLM Router` oder `Workstation (llama.cpp)` gewählt sein.
+
+`power/model_control.py` schreibt die dauerhafte Auswahl nach
+`~/.config/systemd/user/llama-server.service.d/zz-ha-model.conf`. Die bisherigen
+Drop-ins bleiben erhalten. Verwendet werden ein Slot, 8.192 Token Kontext und
+512/256 Batch-Größe. Dateien über 12 GiB erhalten 20 GPU-Layer, damit ein Teil
+auf der CPU bleibt; das kann deutlich langsamer sein. Diese vorsichtigen Werte
+sind keine Qualitäts- oder Geschwindigkeitsbewertung jedes angebotenen Modells.
+Ein Ladefehler stellt den vorherigen Inhalt des neuen Drop-ins wieder her
+(beim ersten Wechsel wird es entfernt) und startet das vorherige Modell.
+Health und tatsächlicher Modellpfad müssen innerhalb von 150 Sekunden stimmen;
+ein weiterer Wechsel und Standby sind währenddessen gesperrt. Laufende
+Router-Anfragen sowie aktive Llama-/Orpheus-Slots blockieren den Wechsel.
+
+Die authentifizierte Workstation-Schnittstelle erhält `GET /models` und
+`POST /models` mit `{"model": "Dateiname.gguf"}`. Für Home Assistant stellt
+nur der Loopback-Router `GET/POST /workstation/models` bereit; der bestehende
+Schlüssel und die Host-Beschränkung bleiben maßgeblich. Statusabrufe wecken
+nicht auf. Solange die Workstation schläft, behält der Router seine zuletzt
+abgerufene Liste im Speicher und meldet ausdrücklich „nicht erreichbar“.
+Nach einem Router-Neustart steht die Liste erst beim nächsten erreichbaren
+Workstation-Abruf zur Verfügung. „Geladenes Modell“ kann während des Schlafs
+den letzten bestätigten Stand zeigen; entscheidend ist zusätzlich der Status.
+
+`power/workstation_models_ha.yaml` ist die Vorlage für
+`/home/christoph/home-assistant/config/packages/workstation_models.yaml` auf
+thinkthing. `power/stage_ha.py` übernimmt die Vorlage und Dashboard-Zeilen.
+Lokale Prüfungen: `python3 -m unittest power.test_power power.test_models -q`.
+Die Routertests aus `power/ha_test_router.py` laufen im HA-Klon unter
+`llm-router/tests/test_workstation_power.py`.
+
+Zum Rückbau Dropdown, Modell-Paket und Router-Erweiterung entfernen; den
+Drop-in `zz-ha-model.conf` löschen und danach `systemctl --user daemon-reload`
+sowie einen kontrollierten Llama-Neustart ausführen. Das aktiviert wieder die
+vorherige Modellkonfiguration. HA vor einem Neustart mit `check_config` prüfen.

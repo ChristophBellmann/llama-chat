@@ -53,3 +53,26 @@ class WakeRouterTests(unittest.TestCase):
                 with urllib.request.urlopen(server_url(proxy) + "/v1/models", timeout=3) as response:
                     response.read()
             power.wake.assert_not_called()
+
+class ModelRouterTests(unittest.TestCase):
+    def test_modellwechsel_body_wird_geprueft_und_weitergegeben(self):
+        proxy = make_router(unavailable_url(), unavailable_url())
+        proxy.workstation_power.models = Mock(return_value=(202, {'status': 'lädt'}))
+        with ServerContext(proxy):
+            request = urllib.request.Request(server_url(proxy) + '/workstation/models',
+                data=b'{"model":"test.gguf"}', headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(request, timeout=3) as response:
+                self.assertEqual(response.status, 202)
+                self.assertEqual(json.load(response)['status'], 'lädt')
+        proxy.workstation_power.models.assert_called_once_with('test.gguf')
+
+    def test_ungueltiger_modellwechsel_wird_abgewiesen(self):
+        proxy = make_router(unavailable_url(), unavailable_url())
+        proxy.workstation_power.models = Mock()
+        with ServerContext(proxy):
+            request = urllib.request.Request(server_url(proxy) + '/workstation/models', data=b'{"model":42}')
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request, timeout=3)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+        proxy.workstation_power.models.assert_not_called()
