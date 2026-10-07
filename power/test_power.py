@@ -70,6 +70,7 @@ class PowerTests(unittest.TestCase):
         # Prüfung auf der Workstation selbst: unbekanntes Desktop-Idle blockiert.
         state = {"busy": False, "reasons": [], "desktop_idle_seconds": None}
         server = Mock(ha_host="127.0.0.1", token="test-token", sleep_lock=threading.Lock())
+        server.models = Mock(state="bereit", benchmark_active=False)
         handler = object.__new__(workstation_power.Handler)
         handler.server = server
         handler.client_address = ("127.0.0.1", 123)
@@ -79,6 +80,7 @@ class PowerTests(unittest.TestCase):
         with patch.object(workstation_power, "activity", return_value=state), patch.object(workstation_power.subprocess, "run") as run:
             handler.do_POST()
         self.assertEqual(handler.reply.call_args.args[0], 409)
+        self.assertIn("Desktop nicht seit 30 Minuten unbenutzt", handler.reply.call_args.args[1]["reasons"])
         run.assert_not_called()
 
     def test_laufende_audioausgabe_verhindert_standby(self):

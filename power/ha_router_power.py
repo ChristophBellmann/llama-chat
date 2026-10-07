@@ -19,6 +19,7 @@ class WorkstationPower:
         self.wake_lock = threading.Lock()
         self.active_requests = 0
         self.last_use = time.monotonic()
+        self.benchmark_cache = {"status": "noch nicht gemessen", "results": []}
         self.model_cache = {"models": [], "active": None, "status": "nicht erreichbar", "error": ""}
 
     @classmethod
@@ -78,8 +79,11 @@ class WorkstationPower:
             self.active_requests += 1
             self.last_use = time.monotonic()
         try:
-            self.wake()
-            yield
+            status, benchmark = self.benchmark()
+            benchmarking = benchmark.get('status') in ('läuft', 'stellt wieder her')
+            if not benchmarking:
+                self.wake()
+            yield benchmarking
         finally:
             with self.lock:
                 self.active_requests -= 1
@@ -122,6 +126,49 @@ class WorkstationPower:
                              "status": "nicht erreichbar", "error": "Workstation schläft oder ist nicht erreichbar"}
             return 503, {"error": "Modellschnittstelle nicht erreichbar"}
 
+    def benchmark(self, action=None, models=None):
+        if not self.config or not self.config.get("power_url"):
+            if action is None:
+                return 200, {"status": "nicht eingerichtet", "results": []}
+        if not self.config or not self.config.get("power_url"):
+            return 503, {"error": "Workstation-Steuerung ist nicht eingerichtet"}
+        if action == 'start':
+            with self.lock:
+                if self.active_requests:
+                    return 409, {"error": "LLM wird noch benutzt"}
+            if not self.wake():
+                return 503, {"error": "Workstation konnte nicht aufgeweckt werden"}
+            # Zwischen Prüfung und Reservierung darf keine neue Inferenz starten.
+            with self.lock:
+                if self.active_requests:
+                    return 409, {"error": "LLM wird noch benutzt"}
+                self.last_use = time.monotonic()
+                return self._benchmark_http(action, models)
+        return self._benchmark_http(action, models)
+
+    def _benchmark_http(self, action, models):
+        suffix = '/benchmark/stop' if action == 'stop' else '/benchmark'
+        request = urllib.request.Request(
+            self.config['power_url'] + suffix,
+            data=json.dumps({'models': models}).encode() if action else None,
+            headers={'Authorization': 'Bearer ' + self.config['token'],
+                     'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(request, timeout=6 if action else 1) as response:
+                payload = json.load(response)
+                if action != 'stop':
+                    self.benchmark_cache = payload
+                return response.status, payload
+        except urllib.error.HTTPError as error:
+            try:
+                return error.code, json.load(error)
+            finally:
+                error.close()
+        except (OSError, ValueError, http.client.HTTPException):
+            if action is None:
+                return 200, {**self.benchmark_cache, 'offline': True}
+            return 503, {'error': 'Modellvergleich nicht erreichbar'}
+
     def suspend(self, automatic=False):
         if not self.config:
             return 503, {"error": "Standby ist nicht eingerichtet"}
@@ -151,17 +198,38 @@ def handle_power(handler):
     """Wird vor den vorhandenen GET/POST-Routen aufgerufen."""
     path = handler.path.split("?", 1)[0]
     if path not in ("/workstation", "/workstation/wake", "/workstation/suspend",
-                    "/workstation/suspend-idle", "/workstation/models"):
+                    "/workstation/suspend-idle", "/workstation/models", "/workstation/benchmark", "/workstation/benchmark/stop"):
         return False
-    if handler.command == "POST" and path != "/workstation/models":
+    if handler.command == "POST" and path not in ("/workstation/models", "/workstation/benchmark"):
         handler._discard_declared_body()
     if handler.client_address[0] not in ("127.0.0.1", "::1"):
-        if handler.command == "POST" and path == "/workstation/models":
+        if handler.command == "POST" and path in ("/workstation/models", "/workstation/benchmark"):
             handler._discard_declared_body()
         handler._json_response(403, {"error": "Nur Home Assistant auf dem Server darf steuern"})
         return True
     power = handler.router.workstation_power
-    if path == "/workstation/models" and handler.command in ("GET", "POST"):
+    if path in ("/workstation/benchmark", "/workstation/benchmark/stop"):
+        models = None
+        if handler.command == 'POST' and path.endswith('/benchmark'):
+            body = handler._read_request_body()
+            if body is None:
+                return True
+            try:
+                payload = json.loads(body)
+                if not isinstance(payload, dict):
+                    raise ValueError()
+                models = payload.get('models')
+            except ValueError:
+                handler._json_response(400, {'error': 'Ungültiger Vergleichsauftrag'})
+                return True
+        if handler.command == 'GET' and path.endswith('/benchmark'):
+            status, payload = power.benchmark()
+        elif handler.command == 'POST':
+            status, payload = power.benchmark('stop' if path.endswith('/stop') else 'start', models)
+        else:
+            status, payload = 405, {'error': 'Methode nicht erlaubt'}
+        handler._json_response(status, payload)
+    elif path == "/workstation/models" and handler.command in ("GET", "POST"):
         model = None
         if handler.command == "POST":
             body = handler._read_request_body()

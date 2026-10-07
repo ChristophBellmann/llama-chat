@@ -76,3 +76,46 @@ class ModelRouterTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 400)
             error.exception.close()
         proxy.workstation_power.models.assert_not_called()
+
+
+class BenchmarkRouterTests(unittest.TestCase):
+    def test_benchmark_nutzt_fallback_statt_testmodell(self):
+        primary = recording_server(b'{"backend":"primary"}')
+        fallback = recording_server(b'{"backend":"fallback"}')
+        with ServerContext(primary), ServerContext(fallback):
+            proxy = make_router(server_url(primary), server_url(fallback))
+            power = WorkstationPower({'power_url': 'http://unused', 'token': 'test'})
+            power.benchmark = Mock(return_value=(200, {'status': 'läuft'}))
+            power.wake = Mock()
+            proxy.workstation_power = power
+            with ServerContext(proxy):
+                request = urllib.request.Request(server_url(proxy) + '/v1/chat/completions',
+                    data=b'{"model":"locales_llm","messages":[]}')
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    self.assertEqual(json.load(response), {'backend': 'fallback'})
+            self.assertFalse(primary.requests)
+            power.wake.assert_not_called()
+            self.assertEqual(json.loads(fallback.requests[0]['body'])['model'], 'qwen3.5:4b')
+
+    def test_erzwungener_primary_im_benchmark_wird_abgewiesen(self):
+        proxy = make_router(unavailable_url(), unavailable_url())
+        power = WorkstationPower({'power_url': 'http://unused', 'token': 'test'})
+        power.benchmark = Mock(return_value=(200, {'status': 'läuft'}))
+        proxy.workstation_power = power
+        with ServerContext(proxy):
+            request = urllib.request.Request(server_url(proxy) + '/v1/chat/completions',
+                data=b'{}', headers={'X-LLM-Router-Backend': 'primary'})
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request, timeout=3)
+            self.assertEqual(error.exception.code, 503)
+            error.exception.close()
+
+    def test_startet_benchmark_mit_optionaler_modellliste(self):
+        proxy = make_router(unavailable_url(), unavailable_url())
+        proxy.workstation_power.benchmark = Mock(return_value=(202, {'status': 'läuft'}))
+        with ServerContext(proxy):
+            request = urllib.request.Request(server_url(proxy) + '/workstation/benchmark',
+                data=b'{"models":["test.gguf"]}')
+            with urllib.request.urlopen(request, timeout=3) as response:
+                self.assertEqual(response.status, 202)
+        proxy.workstation_power.benchmark.assert_called_once_with('start', ['test.gguf'])

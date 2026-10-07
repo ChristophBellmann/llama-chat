@@ -18,6 +18,7 @@ class ModelControl:
         self.state = 'bereit'
         self.error = ''
         self.requested = None
+        self.benchmark_active = False
 
     def catalog(self):
         models, seen = [], set()
@@ -47,23 +48,26 @@ class ModelControl:
                     'status': self.state if self.state != 'bereit' or ready else 'nicht bereit',
                     'requested': self.requested, 'error': self.error}
 
+    def check_idle(self):
+        for port in (8080, 8082):
+            with urllib.request.urlopen(f'http://127.0.0.1:{port}/slots', timeout=2) as response:
+                slots = json.load(response)
+            if not isinstance(slots, list) or not slots or any(
+                    slot.get('is_processing') is not False for slot in slots):
+                raise RuntimeError('Modellaktivität unbekannt oder beschäftigt')
+
     def start(self, model):
         with self.lock:
             if model not in self.catalog():
                 return 400, {'error': 'Unbekanntes Modell'}
             if self.state in ('lädt', 'stellt wieder her'):
                 return 409, {'error': 'Ein Modellwechsel läuft bereits'}
-            # Auch direkt verbundene Textchat-/TTS-Clients berücksichtigen.
+            if self.benchmark_active:
+                return 409, {'error': 'Modellvergleich läuft; zuerst abbrechen'}
             try:
-                for port in (8080, 8082):
-                    with urllib.request.urlopen(f'http://127.0.0.1:{port}/slots', timeout=2) as response:
-                        slots = json.load(response)
-                        if not isinstance(slots, list) or not slots:
-                            raise ValueError('Keine Slots')
-                        if any(slot.get('is_processing') is not False for slot in slots):
-                            return 409, {'error': 'Ein Modell bearbeitet gerade eine Anfrage'}
+                self.check_idle()
             except Exception:
-                return 409, {'error': 'Modellaktivität unbekannt; erst Dienste prüfen'}
+                return 409, {'error': 'Modellaktivität unbekannt oder beschäftigt; erst Dienste prüfen'}
             current = self.status()
             if not current['ready']:
                 return 409, {'error': 'Der LLM-Server ist noch nicht bereit'}
@@ -94,20 +98,50 @@ class ModelControl:
     def quote(value):
         return str(value).replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%')
 
+    def settings(self, model):
+        path = (self.root / 'models' / model).resolve()
+        values = {'GPU_LAYERS': 20 if path.stat().st_size > 12 * 1024**3 else -1,
+                  'CTX': 8192, 'PARALLEL': 1, 'BATCH_SIZE': 512, 'UBATCH_SIZE': 256}
+        profiles = self.root / 'profiles/model-settings.json'
+        if profiles.exists():
+            data = json.loads(profiles.read_text())
+            if data.get('version') != 1:
+                raise ValueError('Unbekannte Modellprofil-Version')
+            values.update(data.get('defaults', {}))
+            values.update(data.get('models', {}).get(model, {}).get('settings', {}))
+        numeric = {'CTX': (512, 262144), 'PARALLEL': (1, 16),
+                   'BATCH_SIZE': (1, 8192), 'UBATCH_SIZE': (1, 8192),
+                   'LLAMA_ARG_FIT_TARGET': (0, 32768), 'LLAMA_ARG_LOG_VERBOSITY': (0, 10)}
+        choices = {'GPU_LAYERS': {'auto'}, 'LLAMA_ARG_FIT': {'on', 'off'},
+                   'CACHE_TYPE_K': {'f16', 'bf16', 'q8_0', 'q4_0', 'q4_1', 'q5_0', 'q5_1', 'iq4_nl'},
+                   'CACHE_TYPE_V': {'f16', 'bf16', 'q8_0', 'q4_0', 'q4_1', 'q5_0', 'q5_1', 'iq4_nl'},
+                   'GGML_CUDA_DISABLE_GRAPHS': {0, 1, '0', '1'}}
+        for key, value in values.items():
+            if key in numeric:
+                lower, upper = numeric[key]
+                valid = type(value) is int and lower <= value <= upper
+            elif key == 'GPU_LAYERS' and type(value) is int:
+                valid = -1 <= value <= 999
+            elif key in choices:
+                valid = isinstance(value, (str, int)) and value in choices[key]
+            else:
+                valid = False
+            if not valid:
+                raise ValueError(f'Ungültige Modelleinstellung: {key}')
+        if values['UBATCH_SIZE'] > values['BATCH_SIZE'] or values['CTX'] // values['PARALLEL'] < 512:
+            raise ValueError('Unpassende Kontext-/Batch-Einstellungen')
+        return values
+
     def change(self, model):
         previous = self.dropin.read_bytes() if self.dropin.exists() else None
         old_model = self.status()['active']
         try:
             path = (self.root / 'models' / model).resolve()
-            # Große Dateien passen nicht vollständig neben Desktop und Orpheus in 12 GB VRAM.
-            layers = 20 if path.stat().st_size > 12 * 1024**3 else -1
+            settings = self.settings(model)
             self.dropin.parent.mkdir(parents=True, exist_ok=True)
             temporary = self.dropin.with_suffix('.tmp')
             temporary.write_text('[Service]\n' + '\n'.join(
-                f'Environment="{key}={self.quote(value)}"' for key, value in {
-                    'MODEL_PATH': path, 'GPU_LAYERS': layers, 'CTX': 8192,
-                    'PARALLEL': 1, 'BATCH_SIZE': 512, 'UBATCH_SIZE': 256,
-                }.items()) + '\n')
+                f'Environment="{key}={self.quote(value)}"' for key, value in {'MODEL_PATH': path, **settings}.items()) + '\n')
             temporary.replace(self.dropin)
             self.systemctl('daemon-reload')
             self.systemctl('restart', 'llama-server.service')

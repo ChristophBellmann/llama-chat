@@ -13,8 +13,10 @@ import urllib.request
 
 try:
     from .model_control import ModelControl
+    from .model_benchmark import ModelBenchmark
 except ImportError:
     from model_control import ModelControl
+    from model_benchmark import ModelBenchmark
 
 
 def activity():
@@ -87,6 +89,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.reply(403, {"error": "Nicht erlaubt"})
         elif self.path == "/models":
             self.reply(200, self.server.models.status())
+        elif self.path == "/benchmark":
+            self.reply(200, self.server.benchmark.status())
         elif self.path == "/status":
             self.reply(200, activity())
         else:
@@ -95,6 +99,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.authorized():
             self.reply(403, {"error": "Nicht erlaubt"})
+            return
+        if self.path in ("/benchmark", "/benchmark/stop"):
+            with self.server.sleep_lock:
+                if self.path.endswith('/stop'):
+                    status, payload = self.server.benchmark.stop()
+                else:
+                    # Optionale Teilmenge für gezielte Funktionsprüfungen.
+                    try:
+                        length = int(self.headers.get('Content-Length', '0'))
+                        if not 0 <= length <= 2048:
+                            raise ValueError()
+                        payload = json.loads(self.rfile.read(length)) if length else {}
+                        if not isinstance(payload, dict):
+                            raise ValueError()
+                    except ValueError:
+                        self.reply(400, {'error': 'Ungültiger Vergleichsauftrag'})
+                        return
+                    status, payload = self.server.benchmark.start(payload.get('models'))
+            self.reply(status, payload)
             return
         if self.path == "/models":
             try:
@@ -118,6 +141,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with self.server.sleep_lock:
             if getattr(getattr(self.server, "models", None), "state", None) in ("lädt", "stellt wieder her"):
                 self.reply(409, {"error": "Modellwechsel läuft"})
+                return
+            if getattr(getattr(self.server, "models", None), "benchmark_active", False):
+                self.reply(409, {"error": "Modellvergleich läuft"})
                 return
             state = activity()
             if self.path == "/suspend-idle" and (
@@ -143,4 +169,5 @@ if __name__ == "__main__":
     server.token = config["token"]
     server.sleep_lock = threading.Lock()
     server.models = ModelControl()
+    server.benchmark = ModelBenchmark(server.models)
     server.serve_forever()

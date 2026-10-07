@@ -25,13 +25,27 @@ def stage(target):
                           "    def do_GET(self) -> None:  # noqa: N802 - Name durch BaseHTTPRequestHandler vorgegeben\n        if handle_power(self):\n            return\n")
     router = replace_once(router, "    def do_POST(self) -> None:  # noqa: N802 - Name durch BaseHTTPRequestHandler vorgegeben\n",
                           "    def do_POST(self) -> None:  # noqa: N802 - Name durch BaseHTTPRequestHandler vorgegeben\n        if handle_power(self):\n            return\n")
-    router = replace_once(router, "    def _forward_request(self, original_body: bytes | None) -> None:\n",
-                          "    def _forward_request(self, original_body: bytes | None) -> None:\n"
-                          "        use_workstation = (self.command == 'POST' and\n"
-                          "                           self.headers.get(TEST_BACKEND_HEADER, '').lower() != 'fallback')\n"
-                          "        with self.router.workstation_power.request(use_workstation):\n"
-                          "            self._forward_request_inner(original_body)\n\n"
-                          "    def _forward_request_inner(self, original_body: bytes | None) -> None:\n")
+    if "    def _forward_request_inner(" not in router:
+        router = replace_once(router, "    def _forward_request(self, original_body: bytes | None) -> None:\n",
+                              "    def _forward_request(self, original_body: bytes | None) -> None:\n"
+                              "        use_workstation = (self.command == 'POST' and\n"
+                              "                           self.headers.get(TEST_BACKEND_HEADER, '').lower() != 'fallback')\n"
+                              "        with self.router.workstation_power.request(use_workstation):\n"
+                              "            self._forward_request_inner(original_body)\n\n"
+                              "    def _forward_request_inner(self, original_body: bytes | None) -> None:\n")
+    router = replace_once(router,
+        "        with self.router.workstation_power.request(use_workstation):\n"
+        "            self._forward_request_inner(original_body)\n\n"
+        "    def _forward_request_inner(self, original_body: bytes | None) -> None:\n",
+        "        with self.router.workstation_power.request(use_workstation) as benchmarking:\n"
+        "            if benchmarking and self.headers.get(TEST_BACKEND_HEADER) == 'primary':\n"
+        "                self._json_error(503, 'Workstation ist für den Modellvergleich reserviert.', 'benchmark_running')\n"
+        "                return\n"
+        "            self._forward_request_inner(original_body, fallback_only=bool(benchmarking))\n\n"
+        "    def _forward_request_inner(self, original_body: bytes | None, *, fallback_only: bool = False) -> None:\n")
+    router = replace_once(router,
+        '        backend_names = [forced_backend] if forced_backend else ["primary", "fallback"]',
+        '        backend_names = ["fallback"] if fallback_only else ([forced_backend] if forced_backend else ["primary", "fallback"])')
     docker_path = target / "llm-router/Dockerfile"
     docker = replace_once(docker_path.read_text(), "COPY router.py /app/router.py\n",
                           "COPY router.py /app/router.py\nCOPY ha_router_power.py /app/ha_router_power.py\n")
@@ -54,6 +68,13 @@ def stage(target):
             "          - entity: select.workstation_modell\n            name: Modell laden\n"
             "          - entity: sensor.workstation_geladenes_modell\n            name: Geladenes Modell\n"
             "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n")
+    if "script.workstation_modelle_testen" not in dashboard:
+        dashboard = replace_once(dashboard,
+            "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n",
+            "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n"
+            "          - entity: script.workstation_modelle_testen\n"
+            "          - entity: script.workstation_modellvergleich_stoppen\n"
+            "          - entity: sensor.workstation_modellvergleich\n")
     # Erst schreiben, nachdem alle erwarteten Stellen geprüft wurden.
     router_path.write_text(router)
     docker_path.write_text(docker)
@@ -63,6 +84,7 @@ def stage(target):
     shutil.copyfile(source / "ha_test_router.py", target / "llm-router/tests/test_workstation_power.py")
     shutil.copyfile(source / "workstation_ha.yaml", target / "config/packages/workstation_power.yaml")
     shutil.copyfile(source / "workstation_models_ha.yaml", target / "config/packages/workstation_models.yaml")
+    shutil.copyfile(source / "workstation_benchmark_ha.yaml", target / "config/packages/workstation_benchmark.yaml")
 
 
 if __name__ == "__main__":

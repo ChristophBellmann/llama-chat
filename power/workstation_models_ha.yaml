@@ -27,7 +27,7 @@ template:
       - name: Workstation Modell
         unique_id: workstation_modell
         icon: mdi:brain
-        availability: "{{ (state_attr('sensor.workstation_modellstatus', 'models') or []) | length > 0 }}"
+        availability: "{{ (state_attr('sensor.workstation_modellstatus', 'models') or []) | length > 0 and states('sensor.workstation_modellvergleich') not in ['läuft', 'stellt wieder her'] }}"
         state: "{{ state_attr('sensor.workstation_modellstatus', 'active') or 'unknown' }}"
         options: "{{ state_attr('sensor.workstation_modellstatus', 'models') or [] }}"
         select_option:

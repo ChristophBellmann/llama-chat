@@ -1,0 +1,76 @@
+rest:
+  - resource: http://127.0.0.1:11436/workstation/benchmark
+    scan_interval: 5
+    timeout: 8
+    sensor:
+      - name: Workstation Modellvergleich
+        unique_id: workstation_modellvergleich
+        value_template: "{{ value_json.status }}"
+        json_attributes:
+          - started
+          - finished
+          - current
+          - phase
+          - completed
+          - total
+          - original
+          - restored
+          - results
+          - error
+          - offline
+
+rest_command:
+  workstation_modellvergleich_starten:
+    url: http://127.0.0.1:11436/workstation/benchmark
+    method: POST
+    content_type: application/json
+    payload: '{}'
+    timeout: 60
+  workstation_modellvergleich_stoppen:
+    url: http://127.0.0.1:11436/workstation/benchmark/stop
+    method: POST
+    timeout: 10
+
+script:
+  workstation_modelle_testen:
+    alias: Alle Workstation-Modelle testen
+    icon: mdi:speedometer
+    mode: single
+    sequence:
+      - action: rest_command.workstation_modellvergleich_starten
+        response_variable: ergebnis
+      - if: "{{ ergebnis.status != 202 }}"
+        then:
+          - action: persistent_notification.create
+            data:
+              title: Modellvergleich nicht gestartet
+              message: "{{ ergebnis.content }}"
+      - action: homeassistant.update_entity
+        target:
+          entity_id: sensor.workstation_modellvergleich
+  workstation_modellvergleich_stoppen:
+    alias: Modellvergleich abbrechen
+    icon: mdi:stop-circle-outline
+    mode: single
+    sequence:
+      - action: rest_command.workstation_modellvergleich_stoppen
+        response_variable: ergebnis
+      - if: "{{ ergebnis.status not in [200, 202] }}"
+        then:
+          - action: persistent_notification.create
+            data:
+              title: Modellvergleich konnte nicht abgebrochen werden
+              message: "{{ ergebnis.content }}"
+
+automation:
+  - id: workstation_modellvergleich_fehler
+    alias: Modellvergleich Fehler melden
+    triggers:
+      - trigger: state
+        entity_id: sensor.workstation_modellvergleich
+        to: Fehler
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: Modellvergleich fehlgeschlagen
+          message: "{{ state_attr('sensor.workstation_modellvergleich', 'error') }}"

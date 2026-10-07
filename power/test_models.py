@@ -65,6 +65,19 @@ class ModelTests(unittest.TestCase):
             self.assertEqual(self.control.start('neu.gguf')[0], 409)
         self.control.systemctl.assert_not_called()
 
+    def test_model_settings_merge_and_validate_whitelist(self):
+        (self.root / 'profiles').mkdir()
+        path = self.root / 'profiles/model-settings.json'
+        path.write_text(json.dumps({'version': 1, 'defaults': {'GPU_LAYERS': 'auto',
+            'LLAMA_ARG_FIT': 'on'}, 'models': {'neu.gguf': {'settings': {'CTX': 16384}}}}))
+        settings = self.control.settings('neu.gguf')
+        self.assertEqual(settings['CTX'], 16384)
+        self.assertEqual(settings['GPU_LAYERS'], 'auto')
+        self.assertEqual(settings['LLAMA_ARG_FIT'], 'on')
+        path.write_text(json.dumps({'version': 1, 'defaults': {'LD_PRELOAD': 'evil'}, 'models': {}}))
+        with self.assertRaisesRegex(ValueError, 'LD_PRELOAD'):
+            self.control.settings('neu.gguf')
+
     def test_parallel_switch_rejected(self):
         self.control.state = 'lädt'
         self.assertEqual(self.control.start('neu.gguf')[0], 409)

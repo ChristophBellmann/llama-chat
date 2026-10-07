@@ -115,10 +115,12 @@ das ausgewählte Modell. Der Alias `locales_llm` bleibt bestehen. Die Auswahl
 
 `power/model_control.py` schreibt die dauerhafte Auswahl nach
 `~/.config/systemd/user/llama-server.service.d/zz-ha-model.conf`. Die bisherigen
-Drop-ins bleiben erhalten. Verwendet werden ein Slot, 8.192 Token Kontext und
-512/256 Batch-Größe. Dateien über 12 GiB erhalten 20 GPU-Layer, damit ein Teil
-auf der CPU bleibt; das kann deutlich langsamer sein. Diese vorsichtigen Werte
-sind keine Qualitäts- oder Geschwindigkeitsbewertung jedes angebotenen Modells.
+Drop-ins bleiben erhalten. Kontext, GPU-Layer, Cache und Batch kommen nun aus
+`profiles/model-settings.json`: gemeinsame `defaults` plus `models[Dateiname].settings`.
+Nur bekannte Umgebungsvariablen mit gültigen Werten werden übernommen. Ohne
+Profildatei gelten weiterhin ein Slot, 8.192 Token Kontext und Batch 512/256;
+Dateien über 12 GiB erhalten dann 20 GPU-Layer. Die jeweiligen Einstellungen
+stehen beim Modellvergleich auch in jeder Ergebniszeile.
 Ein Ladefehler stellt den vorherigen Inhalt des neuen Drop-ins wieder her
 (beim ersten Wechsel wird es entfernt) und startet das vorherige Modell.
 Health und tatsächlicher Modellpfad müssen innerhalb von 150 Sekunden stimmen;
@@ -146,3 +148,52 @@ Zum Rückbau Dropdown, Modell-Paket und Router-Erweiterung entfernen; den
 Drop-in `zz-ha-model.conf` löschen und danach `systemctl --user daemon-reload`
 sowie einen kontrollierten Llama-Neustart ausführen. Das aktiviert wieder die
 vorherige Modellkonfiguration. HA vor einem Neustart mit `check_config` prüfen.
+
+
+## Modellvergleich und Bedienhilfe
+
+**Sprachassistent → Workstation-Modellvergleich → Alle Modelle testen** startet
+`script.workstation_modelle_testen`. Die Vorlage ist
+`power/workstation_benchmark_ha.yaml`, der Live-Pfad auf thinkthing
+`/home/christoph/home-assistant/config/packages/workstation_benchmark.yaml`.
+Der authentifizierte Workstation-Dienst bietet `GET/POST /benchmark` und
+`POST /benchmark/stop`; der Loopback-Router dieselben Pfade unter `/workstation/`.
+Ein Start ohne Modellliste prüft alle deduplizierten GGUF-Dateien. Eine optionale
+`models`-Liste erlaubt gezielte Funktionsprüfungen über dieselbe API.
+
+`power/model_benchmark.py` lädt seriell mit dem Modellprofil. Zwei verworfene
+Aufwärmanfragen und drei identische Streaming-Anfragen liefern Median-TTFT,
+Median-Gesamtdauer und Median-Token/s. Der feste deutsche Textprompt erzeugt
+höchstens 96 Token, mit Temperatur 0 und deaktiviertem Prompt-Cache. Die Ladezeit
+ist eine Einzelmessung. AMD-sysfs wird alle 100 ms abgetastet; der VRAM-Wert ist
+der höchste insgesamt belegte Speicher einschließlich Desktop und Orpheus.
+Die wirksamen Einstellungen und die drei Einzelmessungen werden mit gespeichert.
+Diese Textaufgabe bewertet keine Werkzeugqualität und keine Spracherkennung.
+Andere direkte Llama-Clients währenddessen pausieren; GPU-Nebenlast beeinflusst
+belegte Speicherwerte und Geschwindigkeit.
+
+Während des Vergleichs bleiben Modellauswahl und Standby gesperrt. Der Router
+leitet normale Chat-Anfragen auf den vorhandenen Fallback und weist einen
+explizit erzwungenen Primary mit 503 ab. Das verhindert fremde HA-Inferenz auf
+dem gerade getesteten Modell. Ein Abbruch unterbricht eine laufende
+Streaming-Anfrage; ein bereits begonnener Modellstart darf erst zu Ende gehen.
+Danach wird das vorherige Drop-in bytegenau wiederhergestellt und das ursprüngliche
+Modell erneut über Health und tatsächlichen Modellpfad geprüft.
+
+Ergebnisse liegen ausschließlich außerhalb von Git unter
+`~/.config/workstation-power/benchmark.json` (Modus 600). Eine separate
+`benchmark.recovery.json` hält die ursprüngliche Konfiguration bis zur
+bestätigten Wiederherstellung vor. Nach einem unterbrochenen Dienststart stellt
+der nächste Start des Steuerdienstes zuerst diesen Stand wieder her. Ein
+HA-Neustart beendet den Workstation-Lauf nicht. Ladefehler werden pro Modell
+angezeigt, Wiederherstellungsfehler zusätzlich als HA-Benachrichtigung.
+
+Die Erläuterungen zu Modellwahl, Messungen, Sprach-Agenten, Stimmen, Standby und
+Superuser sind im Dashboard über **Bedienhilfe** erreichbar. Das Popup benutzt
+das bereits installierte Browser Mod; Messwerte und Bedienfelder bleiben direkt
+sichtbar. Betriebsdokumentation:
+`/home/christoph/home-assistant/docs/workstation-modellvergleich-2026-10-07.md`.
+
+Prüfen: `python3 -m unittest power.test_power power.test_models power.test_benchmark -q`.
+`power/stage_ha.py` übernimmt beide Modellpakete, die Router-Regeln und einfache
+Steuerzeilen; das ausführliche Dashboard wird im HA-Repository gepflegt.
