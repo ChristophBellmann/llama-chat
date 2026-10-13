@@ -75,6 +75,15 @@ letzten Desktop-Eingabe. Unbekannte Slot-, GPU- oder Desktop-Aktivität
 blockiert den entsprechenden Standby-Versuch. CPU-Last und GPU-Auslastung
 sind Indikatoren und erkennen nicht jede beliebige Hintergrundarbeit.
 
+Wakeword-Training, Teacher-GPU-Läufe und GPU-Benchmark-Kampagnen halten zusätzlich
+die gemeinsame Sperre `~/.cache/wake-word-trainer/gpu.lock` (bei gesetztem
+`XDG_CACHE_HOME` dort). Solange sie belegt ist, blockiert die Standby-Steuerung
+auch Pausen bei Datenaufbereitung und Validierung mit momentan ruhender GPU.
+Eine nach einem Absturz übrig gebliebene Datei blockiert nicht: Entscheidend
+ist die tatsächliche Dateisperre. Der Schutz braucht keine Trainer-Tokens.
+Modellladen und LLM-Modellvergleiche werden während dieser Belegung ebenfalls
+abgelehnt, damit sie dem Training nicht den VRAM wegnehmen.
+
 Orpheus wird durch dieselbe LLM-Anfrage mit aufgeweckt. Ein eigenständiger
 TTS-Aufruf direkt an die schlafende Wyoming-Schnittstelle hat noch keinen
 Aufweck-Proxy. Ohne LLM-Anfrage vorher muss der Aufweck-Button benutzt werden.

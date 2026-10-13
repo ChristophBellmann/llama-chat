@@ -2,6 +2,7 @@
 """Beschränkte Standby-Schnittstelle für Home Assistant (nur Standardbibliothek)."""
 
 import hmac
+import fcntl
 import http.server
 import json
 import os
@@ -19,8 +20,30 @@ except ImportError:
     from model_benchmark import ModelBenchmark
 
 
+def trainer_active(lock_file=None):
+    """Die gemeinsame Trainer-Sperre blockiert Standby auch in CPU-/I/O-Phasen."""
+    path = Path(lock_file) if lock_file is not None else (
+        Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+        / "wake-word-trainer/gpu.lock"
+    )
+    try:
+        with path.open("r") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(handle, fcntl.LOCK_UN)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True  # Unbekannte laufende Arbeit nicht durch Suspend abbrechen.
+    return False
+
+
 def activity(voice='orpheus'):
     reasons = []
+    if trainer_active():
+        reasons.append("Wakeword-Training oder GPU-Benchmark läuft")
     for port in ((8080,) if voice == 'ramona' else (8080, 8082)):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/slots", timeout=2) as response:
@@ -105,6 +128,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.authorized():
             self.reply(403, {"error": "Nicht erlaubt"})
+            return
+        if self.path in ("/models", "/benchmark") and trainer_active():
+            self.reply(409, {"error": "Wakeword-Training oder GPU-Benchmark läuft"})
             return
         if self.path in ("/benchmark", "/benchmark/stop"):
             with self.server.sleep_lock:

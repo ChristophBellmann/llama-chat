@@ -1,6 +1,9 @@
 import http.client
 import http.server
 import threading
+import tempfile
+import fcntl
+from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
@@ -8,6 +11,31 @@ from power import ha_router_power, workstation_power
 
 
 class PowerTests(unittest.TestCase):
+    def test_trainer_blocks_model_loading_and_llm_benchmark(self):
+        handler=object.__new__(workstation_power.Handler)
+        handler.server=Mock(ha_host="127.0.0.1",token="test-token")
+        handler.client_address=("127.0.0.1",123)
+        handler.headers={"Authorization":"Bearer test-token"}
+        handler.reply=Mock()
+        with patch.object(workstation_power,"trainer_active",return_value=True):
+            for path in ("/models","/benchmark"):
+                handler.path=path
+                handler.do_POST()
+                self.assertEqual(handler.reply.call_args.args[0],409)
+        handler.server.models.start.assert_not_called()
+        handler.server.benchmark.start.assert_not_called()
+
+    def test_trainer_lock_protects_idle_gpu_phases_and_stale_metadata_does_not(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'gpu.lock'
+            self.assertFalse(workstation_power.trainer_active(path))
+            with path.open('w') as handle:
+                handle.write('{"job":"benchmark"}')
+                handle.flush()
+                fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                self.assertTrue(workstation_power.trainer_active(path))
+            self.assertFalse(workstation_power.trainer_active(path))
+
     def test_magic_packet_uses_wlan_mac_and_broadcast(self):
         power = ha_router_power.WorkstationPower({"mac": "c8:b2:9b:df:73:20", "broadcast": "192.168.178.255"})
         with patch.object(ha_router_power.socket, "socket") as socket:
