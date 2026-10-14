@@ -33,5 +33,8 @@ Bibliotheken werden vor dem späteren Systemwechsel separat geprüft.
 Die Shell-Vertragsprüfung `tests/test_rocm_setup.py` führt das Setup mit einem
 isolierten Paket-Runner aus: richtiges GPU-Paket, kein Legacy-Wheel und keine
 geerbten alten Bibliothekspfade. Die GPU-/MIOpen-Tests der passenden AMD-
-Torch-Pakete liegen im Wake-Word-Trainer-Vergleich; das ersetzt noch keinen
-SNAC-Funktionstest.
+Torch-Pakete liegen im Wake-Word-Trainer-Vergleich. Zusätzlich bestand die
+separate neue Voice-Umgebung den realen SNAC-Decoder auf der RX 6700 XT:
+feste Codes, 8.192 endliche Ausgabesamples bei 24 kHz, Modellparameter auf GPU,
+keine Audio-Wiedergabe. Das prüft den Decoder; die vollständige produktive
+Sprachstrecke benötigt vor einer Umschaltung noch ihren eigenen Nachtest.
