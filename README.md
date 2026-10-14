@@ -26,6 +26,9 @@ Der frühere `./chat.sh --mode speech`-Pfad ist nicht mehr der Standard.
 
 Runtime-Caches bleiben repo-lokal unter `.cache/`:
 
+Der [ROCm-/Wheel-Umzug für Voice](voice/rocm-update.md) beschreibt die separate
+AMD-SDK-Umgebung und die Paketwahl, bevor die alte Systemruntime ersetzt wird.
+
 - Hugging Face Hub/Xet/Transformers: `.cache/huggingface/`
 - XDG-Cache-Fallbacks: `.cache/xdg/`
 - llama.cpp Cache: `.cache/llama.cpp/`

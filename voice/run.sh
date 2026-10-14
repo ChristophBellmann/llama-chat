@@ -27,6 +27,7 @@ Notes:
   - Uses voice/.venv internally; no manual source needed.
   - Stable default: Piper.
   - Orpheus speech is optional/experimental.
+  - VOICE_ROCM_RUNTIME=python-sdk selects the new AMD packages in a separate VENV_DIR.
 USAGE
   exit 1
 fi
@@ -36,6 +37,25 @@ runtime_env() {
   export PYTHONPATH="$VOICE_DIR:$ROOT_DIR:${PYTHONPATH:-}"
   export SNAC_DEVICE="${SNAC_DEVICE:-cpu}"
   export PATH="$VENV_DIR/bin:${PATH:-}"
+
+  VOICE_ROCM_RUNTIME_RESOLVED="${VOICE_ROCM_RUNTIME:-auto}"
+  if [[ "$VOICE_ROCM_RUNTIME_RESOLVED" == auto ]]; then
+    if [[ -x "$PY" ]] && "$PY" -c 'from importlib.metadata import version; version("rocm-sdk-core"); version("rocm-sdk-libraries")' >/dev/null 2>&1; then
+      VOICE_ROCM_RUNTIME_RESOLVED=python-sdk
+    else
+      VOICE_ROCM_RUNTIME_RESOLVED=legacy
+    fi
+  fi
+  if [[ "$VOICE_ROCM_RUNTIME_RESOLVED" == python-sdk ]]; then
+    # The AMD packages load their own matching runtime. Inherited legacy paths
+    # and libomp preloads would mix this SDK with the installation under /opt.
+    unset ROCM_PATH ROCM_HOME HIP_PATH HSA_PATH HSA_OVERRIDE_GFX_VERSION
+    unset LD_LIBRARY_PATH LD_PRELOAD
+    return
+  elif [[ "$VOICE_ROCM_RUNTIME_RESOLVED" != legacy ]]; then
+    echo "Fehler: VOICE_ROCM_RUNTIME muss auto, legacy oder python-sdk sein" >&2
+    exit 2
+  fi
 
   # Prefer repo-local llama.cpp libs, same principle as start_llama_server.sh.
   export LD_LIBRARY_PATH="$ROOT_DIR/llama.cpp/build/bin:${LD_LIBRARY_PATH:-}"
@@ -83,14 +103,23 @@ case "$cmd" in
     runtime_env
     "$PY" -m pip install -U pip wheel setuptools
 
-    TORCH_WHEEL="${TORCH_WHEEL:-/opt/rocm/wheels/pytorch_rocm711/torch-current.whl}"
-    if [[ -e "$TORCH_WHEEL" ]]; then
-      TORCH_WHEEL="$(readlink -f "$TORCH_WHEEL")"
-      echo "Installiere lokales Torch-Wheel: $TORCH_WHEEL"
-      "$PY" -m pip install --force-reinstall "$TORCH_WHEEL"
+    if [[ "$VOICE_ROCM_RUNTIME_RESOLVED" == python-sdk ]]; then
+      TORCH_SDK_VERSION="${TORCH_SDK_VERSION:-2.12.0+rocm10.1.0}"
+      ROCM_DEVICE_TARGET="${ROCM_DEVICE_TARGET:-gfx1031}"
+      "$PY" -m pip install \
+        --index-url https://stable.repo.amd.com/rocm/whl-next/ \
+        --extra-index-url https://pypi.org/simple \
+        "torch[device-$ROCM_DEVICE_TARGET]==$TORCH_SDK_VERSION" 'numpy<2'
     else
-      echo "Hinweis: kein lokales Torch-Wheel gefunden: $TORCH_WHEEL" >&2
-      echo "snac kann dann ggf. CPU-Torch von PyPI nachziehen." >&2
+      TORCH_WHEEL="${TORCH_WHEEL:-/opt/rocm/wheels/pytorch_rocm711/torch-current.whl}"
+      if [[ -e "$TORCH_WHEEL" ]]; then
+        TORCH_WHEEL="$(readlink -f "$TORCH_WHEEL")"
+        echo "Installiere lokales Torch-Wheel: $TORCH_WHEEL"
+        "$PY" -m pip install --force-reinstall "$TORCH_WHEEL"
+      else
+        echo "Hinweis: kein lokales Torch-Wheel gefunden: $TORCH_WHEEL" >&2
+        echo "snac kann dann ggf. CPU-Torch von PyPI nachziehen." >&2
+      fi
     fi
 
     "$PY" -m pip install -r "$VOICE_DIR/requirements.txt"
