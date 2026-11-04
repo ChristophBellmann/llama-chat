@@ -40,7 +40,7 @@ Runtime-Caches bleiben repo-lokal unter `.cache/`:
 Terminal A:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 ./start_llama_server.sh
 ```
 
@@ -109,7 +109,7 @@ desktop/llama-server-stop.desktop
 Installation/Update auf Linux Mint:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 ./install_mint_launcher.sh
 ```
 
@@ -126,7 +126,7 @@ systemctl --user is-active llama-server.service
 ## 2. Textchat im Terminal
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 ./chat.sh
 ```
 
@@ -158,7 +158,7 @@ Fuer `llama.cpp/convert_hf_to_gguf_update.py` gibt es einen Repo-Wrapper, der
 automatisch den Token aus `HF_HOME/token` verwendet:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 ./run_convert_hf_update.sh --check-missing
 ```
 
@@ -210,7 +210,7 @@ STT -> 8081 /v1/chat/completions -> 8082 /completion -> SNAC CPU -> Speaker
 Einmalig:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 ./voice/run.sh setup
 ./voice/run.sh download-piper
@@ -259,7 +259,7 @@ ls -lh models/voice/Qwen2.5-7B-Instruct-Q4_K_M.gguf
 Reply-LLM auf Loxa umstellen und kompletten Stack starten:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 REPLY_MODEL=./models/Loxa-3B-Q4_K_M.gguf ./start_voice_stack.sh
 ```
 
@@ -276,7 +276,7 @@ REPLY_MODEL=./models/Loxa-3B-Q4_K_M.gguf REPLY_CTX=4096 LLAMA_MAX_TOKENS=64 ./st
 ### Terminal A: Reply-LLM starten
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 PORT=8081 \
 MODEL_ALIAS=voice-local \
@@ -295,7 +295,7 @@ alias: voice-local
 ### Terminal B: Orpheus-TTS-Server starten
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 MODEL="$(./voice/run.sh orpheus-path)"
 
@@ -316,7 +316,7 @@ alias: orpheus-tts
 ### Terminal C: Voice-Loop starten
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 LLAMA_API_URL=http://127.0.0.1:8081/v1/chat/completions \
 LLAMA_MODEL=voice-local \

@@ -15,7 +15,7 @@ Nur `192.168.178.55` mit passendem Bearer-Schlüssel darf `/status` lesen und
 Im eigenen Terminal auf der Workstation:
 
 ```bash
-bash /media/christoph/some_space/Compute/ML-Lab/llama-chat/power/enable_standby.sh
+bash /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat/power/enable_standby.sh
 ```
 
 Aktiviert WoWLAN für die aktuelle Verbindung und erlaubt über eine mit

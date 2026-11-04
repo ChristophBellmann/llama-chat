@@ -28,7 +28,7 @@ Mikrofon
 Terminal A:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 PORT=8081 \
 MODEL_ALIAS=voice-local \
@@ -48,7 +48,7 @@ http://127.0.0.1:8081/v1/chat/completions
 Terminal B:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 MODEL="$(./voice/run.sh orpheus-path)"
 
@@ -70,7 +70,7 @@ http://127.0.0.1:8082/completion
 Terminal C:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 ORPHEUS_COMPLETION_URL=http://127.0.0.1:8082/completion \
 SNAC_DEVICE=cpu \
@@ -87,7 +87,7 @@ Orpheus-Server: ...s Audio, sr=24000, synth=...s
 ### 4. Voice-Loop starten
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 
 LLAMA_API_URL=http://127.0.0.1:8081/v1/chat/completions \
 LLAMA_MODEL=voice-local \
@@ -370,7 +370,7 @@ PIPER_CONFIG=/pfad/model.onnx.json
 GPU-Server starten:
 
 ```bash
-cd /media/christoph/some_space/Compute/ML-Lab/llama-chat
+cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 ./start_orpheus_de_server.sh
 ```
 
