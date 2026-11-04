@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Orpheus Stop
+Comment=Stop Orpheus TTS bridge and model to release GPU memory
+Exec=systemctl --user stop orpheus-manual.target wyoming-orpheus.service orpheus-llm.service
+Icon=media-playback-stop
+Terminal=false
+Categories=Development;

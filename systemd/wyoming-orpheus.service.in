@@ -1,0 +1,17 @@
+[Unit]
+Description=Wyoming-TTS-Bruecke fuer Orpheus (Port 10401, fuer Home Assistant)
+Documentation=file://__REPO_DIR__/voice/README.md
+After=network-online.target orpheus-llm.service
+Requires=orpheus-llm.service
+PartOf=orpheus-manual.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO_DIR__
+ExecStart=__REPO_DIR__/start_wyoming_orpheus.sh
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 60); do curl -sf -m 2 http://127.0.0.1:8082/health >/dev/null && exit 0; sleep 2; done; echo "Orpheus-LLM auf 8082 kam nicht hoch" >&2; exit 1'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

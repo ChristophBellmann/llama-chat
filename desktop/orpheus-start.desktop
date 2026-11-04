@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Orpheus Start
+Comment=Start Orpheus TTS model and Wyoming bridge for Home Assistant
+Exec=systemctl --user start orpheus-manual.target orpheus-llm.service wyoming-orpheus.service
+Icon=media-playback-start
+Terminal=false
+Categories=Development;

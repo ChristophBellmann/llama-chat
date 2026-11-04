@@ -93,8 +93,14 @@ enthaelt auch die Speicherreserve und Sprachausgabezeit.
 
 ## 1.5 Linux Mint Programmstarter + Autostart
 
-`llama-server` kann als `systemd --user` Service laufen und über zwei
-Programmstarter-Eintraege gestartet/gestoppt werden.
+LLAMA und Orpheus laufen als `systemd --user`-Dienste. Im Anwendungsmenü
+stehen vier Programmstarter bereit: `LLAMA Start`, `LLAMA Stop`,
+`Orpheus Start` und `Orpheus Stop`. Orpheus Start/Stop steuert gemeinsam
+das Sprachmodell und die Wyoming-Brücke für Home Assistant.
+Der ausdrückliche Orpheus-Start aktiviert `orpheus-manual.target` und
+funktioniert auch bei einem LLAMA-Profil mit Ramona. Orpheus Stop beendet
+dieses Target und beide Dienste. Ohne den manuellen Start gilt weiterhin
+die automatische Stimmenauswahl des LLAMA-Profils.
 
 Der Service lädt das in `start_llama_server.sh` konfigurierte Default-Modell.
 
@@ -102,8 +108,13 @@ Die Repo-Dateien:
 
 ```text
 systemd/llama-server.service.in   # Vorlage – kein Modell-Pfad mehr, nutzt Skript-Default
+systemd/orpheus-llm.service.in
+systemd/wyoming-orpheus.service.in
+systemd/orpheus-manual.target.in
 desktop/llama-server-start.desktop
 desktop/llama-server-stop.desktop
+desktop/orpheus-start.desktop
+desktop/orpheus-stop.desktop
 ```
 
 Installation/Update auf Linux Mint:
@@ -112,6 +123,11 @@ Installation/Update auf Linux Mint:
 cd /media/christoph/some_space/Compute/ML-Lab/thinkthing/third_party/llama-chat
 ./install_mint_launcher.sh
 ```
+
+Der Installer übernimmt den aktuellen Checkout-Pfad und erhält vorhandene
+systemd-Drop-ins für Modellauswahl und GPU-Einstellungen. Er startet keine
+Modelle. Der bisherige LLAMA-Autostart wird eingerichtet; die
+Orpheus-Autostarteinstellung bleibt unverändert.
 
 Manuell steuern:
 

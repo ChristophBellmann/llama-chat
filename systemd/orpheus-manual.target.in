@@ -1,0 +1,7 @@
+[Unit]
+Description=Explicit Orpheus start from the workstation menu
+# A target normally orders itself after its wanted services. Here it represents
+# the manual request and must be active before their voice-policy conditions.
+DefaultDependencies=no
+Wants=orpheus-llm.service wyoming-orpheus.service
+Before=orpheus-llm.service wyoming-orpheus.service

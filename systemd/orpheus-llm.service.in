@@ -1,0 +1,15 @@
+[Unit]
+Description=Orpheus-DE TTS-Modell (llama-server, Port 8082)
+Documentation=file://__REPO_DIR__/voice/README.md
+After=network-online.target
+PartOf=orpheus-manual.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO_DIR__
+ExecStart=__REPO_DIR__/start_orpheus_de_server.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
