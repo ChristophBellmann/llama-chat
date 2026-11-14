@@ -1,10 +1,16 @@
 # Model files
 
-Hier liegen die lokalen Modell-Dateien.
+Die lokalen Modell-Dateien liegen außerhalb des Checkouts unter
+`/media/christoph/some_space/Compute/ML-Lab/models/llama-chat/`.
+Seit dem 14.11.2026 verweisen lokale, von Git ignorierte symbolische Links
+in diesem Ordner auf die ausgelagerten Dateien und Unterordner. Dadurch
+bleiben bestehende Modellpfade in Skripten und Profilen gültig.
 
-Hinweis:
-- Die großen Modelldateien (z. B. `*.gguf`, `*.bin`, `*.safetensors`) gehoeren in diesen Ordner.
-- Sie werden ueber `.gitignore` nicht mitcommittet.
+Neue Modelle direkt im externen Verzeichnis ablegen und hier bei Bedarf
+einen symbolischen Link anlegen. Die Gewichte und Links werden nicht
+mitcommittet; ein neuer Checkout enthält nur diese Dokumentation.
+Die Auslagerung verkleinert den lokalen Checkout, nicht die Git-Historie:
+Die Modellgewichte waren bereits von Git ausgeschlossen.
 
 ## Verfügbare Modelle (GGUF)
 
