@@ -19,6 +19,11 @@ class WorkstationPower:
         self.wake_lock = threading.Lock()
         self.active_requests = 0
         self.last_use = time.monotonic()
+        # Nach einem gescheiterten Weckversuch bis zu diesem Zeitpunkt nicht
+        # erneut warten: ist die Workstation ganz aus oder außer Haus, kostete
+        # sonst jede Sprachanfrage die volle Weckzeit, bevor der Fallback kam.
+        self.wake_failed_until = 0.0
+        self.benchmark_revision = 0
         self.benchmark_cache = {"status": "noch nicht gemessen", "results": []}
         self.model_cache = {"models": [], "active": None, "status": "nicht erreichbar", "error": ""}
 
@@ -58,20 +63,24 @@ class WorkstationPower:
             return False
         with self.wake_lock:
             if self.ready():
+                self.wake_failed_until = 0.0
                 return True
+            if time.monotonic() < self.wake_failed_until:
+                return False
             deadline = time.monotonic() + self.config.get("wake_timeout", 45)
             while time.monotonic() < deadline:
                 try:
                     self.send_magic_packet()
                 except OSError:
-                    return False
+                    break
                 if self.ready():
                     return True
                 time.sleep(min(2, max(0, deadline - time.monotonic())))
+            self.wake_failed_until = time.monotonic() + self.config.get("wake_retry_after", 600)
             return False
 
     @contextlib.contextmanager
-    def request(self, use_workstation=True):
+    def request(self, use_workstation=True, *, wait_for_ready=True):
         if not use_workstation or not self.config:
             yield
             return
@@ -79,9 +88,15 @@ class WorkstationPower:
             self.active_requests += 1
             self.last_use = time.monotonic()
         try:
-            status, benchmark = self.benchmark()
+            if wait_for_ready:
+                _, benchmark = self.benchmark()
+            else:
+                # Voice nutzt die Hintergrundprüfung. Keine Netzabfrage und
+                # kein Aufwecken im Anfragepfad, Reservierung bleibt erhalten.
+                with self.lock:
+                    benchmark = dict(self.benchmark_cache)
             benchmarking = benchmark.get('status') in ('läuft', 'stellt wieder her')
-            if not benchmarking:
+            if wait_for_ready and not benchmarking:
                 self.wake()
             yield benchmarking
         finally:
@@ -147,6 +162,10 @@ class WorkstationPower:
         return self._benchmark_http(action, models)
 
     def _benchmark_http(self, action, models):
+        with self.lock:
+            if action:
+                self.benchmark_revision += 1
+            revision = self.benchmark_revision
         suffix = '/benchmark/stop' if action == 'stop' else '/benchmark'
         request = urllib.request.Request(
             self.config['power_url'] + suffix,
@@ -157,7 +176,9 @@ class WorkstationPower:
             with urllib.request.urlopen(request, timeout=6 if action else 1) as response:
                 payload = json.load(response)
                 if action != 'stop':
-                    self.benchmark_cache = payload
+                    with self.lock:
+                        if revision == self.benchmark_revision:
+                            self.benchmark_cache = payload
                 return response.status, payload
         except urllib.error.HTTPError as error:
             try:
@@ -247,6 +268,8 @@ def handle_power(handler):
     elif handler.command == "GET" and path == "/workstation":
         handler._json_response(200, power.status())
     elif handler.command == "POST" and path == "/workstation/wake":
+        # Der Aufweckknopf versucht es immer, auch in der Sperrzeit.
+        power.wake_failed_until = 0.0
         with power.request():
             ready = power.ready()
         handler._json_response(200 if ready else 503, {"ready": ready})

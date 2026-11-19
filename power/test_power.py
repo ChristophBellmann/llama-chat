@@ -3,6 +3,8 @@ import http.server
 import threading
 import tempfile
 import fcntl
+import io
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
@@ -62,6 +64,44 @@ class PowerTests(unittest.TestCase):
         with power.request(False):
             pass
         power.wake.assert_not_called()
+
+    def test_fast_request_keeps_reservation_without_network_or_wake(self):
+        power = ha_router_power.WorkstationPower({"wake_timeout": 45})
+        power.wake = Mock(side_effect=AssertionError("Kein Aufwecken"))
+        power.benchmark = Mock(side_effect=AssertionError("Keine Netzwerkabfrage"))
+        power.benchmark_cache = {"status": "läuft"}
+        with power.request(wait_for_ready=False) as reserved:
+            self.assertTrue(reserved)
+            self.assertEqual(power.status()["active_requests"], 1)
+            self.assertEqual(power.suspend()[0], 409)
+        self.assertEqual(power.status()["active_requests"], 0)
+        power.wake.assert_not_called()
+        power.benchmark.assert_not_called()
+
+    def test_old_benchmark_poll_cannot_erase_new_reservation(self):
+        power = ha_router_power.WorkstationPower({"power_url": "http://unused", "token": "test"})
+        started, release = threading.Event(), threading.Event()
+        class SlowResponse(io.BytesIO):
+            def read(self, *args):
+                started.set()
+                if not release.wait(2):
+                    raise TimeoutError("Testfreigabe fehlt")
+                return super().read(*args)
+        def open_request(request, **kwargs):
+            response = (SlowResponse(b'{"status":"bereit"}') if request.data is None
+                        else io.BytesIO('{"status":"läuft"}'.encode()))
+            response.status = 200
+            return response
+        with patch.object(ha_router_power.urllib.request, "urlopen", side_effect=open_request):
+            with ThreadPoolExecutor(1) as pool:
+                old = pool.submit(power._benchmark_http, None, None)
+                self.assertTrue(started.wait(1))
+                try:
+                    self.assertEqual(power._benchmark_http("start", None)[1]["status"], "läuft")
+                finally:
+                    release.set()
+                old.result(2)
+        self.assertEqual(power.benchmark_cache["status"], "läuft")
 
     def test_wake_timeout_preserves_forwarding_to_existing_fallback(self):
         power = ha_router_power.WorkstationPower({"wake_timeout": 0})

@@ -220,3 +220,19 @@ Das Dashboard zeigt die Vorgabe unter **Stimme zum Modell** und in den
 Benchmark-Ergebnissen. Benchmark, Abbruch und Fehlerwiederherstellung wenden
 dieselbe Dienststeuerung an; Boot verhindert Orpheus neben IQ2_S über
 `power/orpheus_condition.py` (Drop-ins installiert von `install_workstation_power.sh`).
+
+### Bereitschaft vor Chat-Anfragen
+
+Der HA-Router kann `WorkstationPower.request(wait_for_ready=False)` verwenden:
+Aktivitätszähler und Benchmark-Reservierung bleiben wirksam, aber der Aufruf
+fragt keinen entfernten Dienst ab und weckt den Rechner nicht auf. Er nutzt
+stattdessen `benchmark_cache`, den der Router im Hintergrund aktualisiert.
+Die Standardoption `wait_for_ready=True` bleibt für ausdrückliches Aufwecken
+erhalten. Revisionsnummern verhindern, dass ein älterer Hintergrundabruf eine
+neu gestartete Benchmark-Reservierung überschreibt.
+
+Das HA-Staging setzt den Router mit `ReadinessMonitor` und `GET /status`
+voraus. Orpheus liest diesen Cache über `check_orpheus_ready.py`; der bestehende
+command_line-Sensor und seine Entitätsidentität bleiben erhalten. Modell-Health
+und Wyoming-Port müssen beide bereit sein. Neuere getrennte Rechner-Dashboards
+werden vom Staging nicht mit alten Steuerzeilen ergänzt.

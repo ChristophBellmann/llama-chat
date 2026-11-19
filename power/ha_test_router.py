@@ -1,6 +1,7 @@
 """Integrationstests; stage_ha.py kopiert sie zu llm-router/tests/."""
 
 import json
+import time
 import unittest
 import urllib.request
 from unittest.mock import Mock
@@ -10,7 +11,7 @@ from ha_router_power import WorkstationPower
 
 
 class WakeRouterTests(unittest.TestCase):
-    def test_erste_anfrage_bleibt_nach_aufwecken_unveraendert(self):
+    def test_explizites_aufwecken_und_anschiessende_anfrage_bleiben_erhalten(self):
         primary = recording_server(status=503)
         with ServerContext(primary):
             proxy = make_router(server_url(primary), unavailable_url())
@@ -20,6 +21,9 @@ class WakeRouterTests(unittest.TestCase):
             proxy.workstation_power = power
             payload = b'{"model":"locales_llm","messages":[{"role":"user","content":"Test"}]}'
             with ServerContext(proxy):
+                with urllib.request.urlopen(urllib.request.Request(
+                        server_url(proxy) + "/workstation/wake", data=b""), timeout=3) as response:
+                    self.assertTrue(json.load(response)["ready"])
                 request = urllib.request.Request(server_url(proxy) + "/v1/chat/completions", data=payload)
                 with urllib.request.urlopen(request, timeout=3) as response:
                     self.assertEqual(response.status, 200)
@@ -28,12 +32,13 @@ class WakeRouterTests(unittest.TestCase):
             self.assertEqual(primary.requests[0]["body"], payload)
             self.assertEqual(power.status()["active_requests"], 0)
 
-    def test_weckfehler_erhaelt_bisherigen_fallback(self):
+    def test_ordinary_voice_uses_fallback_without_wake_or_network_status(self):
         fallback = recording_server(b'{"backend":"fallback"}')
         with ServerContext(fallback):
             proxy = make_router(unavailable_url(), server_url(fallback))
             power = WorkstationPower({"wake_timeout": 0})
-            power.ready = Mock(return_value=False)
+            power.wake = Mock(side_effect=AssertionError("Kein Aufwecken für Voice"))
+            power.benchmark = Mock(side_effect=AssertionError("Keine Netzprüfung für Voice"))
             proxy.workstation_power = power
             with ServerContext(proxy):
                 request = urllib.request.Request(server_url(proxy) + "/v1/chat/completions",
@@ -41,6 +46,31 @@ class WakeRouterTests(unittest.TestCase):
                 with urllib.request.urlopen(request, timeout=3) as response:
                     self.assertEqual(json.load(response), {"backend": "fallback"})
             self.assertEqual(json.loads(fallback.requests[0]["body"])["model"], "qwen3.5:4b")
+
+    def test_nach_weckfehler_wartet_naechste_anfrage_nicht_erneut(self):
+        power = WorkstationPower({"wake_timeout": 0.3, "wake_retry_after": 60})
+        power.ready = Mock(return_value=False)
+        power.send_magic_packet = Mock()
+        self.assertFalse(power.wake())
+        versuche = power.send_magic_packet.call_count
+        self.assertGreater(versuche, 0)
+        start = time.monotonic()
+        self.assertFalse(power.wake())
+        self.assertLess(time.monotonic() - start, 0.1)
+        self.assertEqual(power.send_magic_packet.call_count, versuche)
+        # Ist die Workstation wieder da, gilt das sofort.
+        power.ready = Mock(return_value=True)
+        self.assertTrue(power.wake())
+        self.assertEqual(power.wake_failed_until, 0.0)
+
+    def test_weckversuch_nach_sperrzeit_wieder_moeglich(self):
+        power = WorkstationPower({"wake_timeout": 0, "wake_retry_after": 0})
+        power.ready = Mock(return_value=False)
+        power.send_magic_packet = Mock()
+        power.wake()
+        power.config["wake_timeout"] = 0.1
+        power.wake()
+        power.send_magic_packet.assert_called()
 
     def test_modellliste_weckt_nicht_auf(self):
         primary = recording_server()
@@ -85,7 +115,7 @@ class BenchmarkRouterTests(unittest.TestCase):
         with ServerContext(primary), ServerContext(fallback):
             proxy = make_router(server_url(primary), server_url(fallback))
             power = WorkstationPower({'power_url': 'http://unused', 'token': 'test'})
-            power.benchmark = Mock(return_value=(200, {'status': 'läuft'}))
+            power.benchmark_cache = {'status': 'läuft'}
             power.wake = Mock()
             proxy.workstation_power = power
             with ServerContext(proxy):
@@ -100,7 +130,7 @@ class BenchmarkRouterTests(unittest.TestCase):
     def test_erzwungener_primary_im_benchmark_wird_abgewiesen(self):
         proxy = make_router(unavailable_url(), unavailable_url())
         power = WorkstationPower({'power_url': 'http://unused', 'token': 'test'})
-        power.benchmark = Mock(return_value=(200, {'status': 'läuft'}))
+        power.benchmark_cache = {'status': 'läuft'}
         proxy.workstation_power = power
         with ServerContext(proxy):
             request = urllib.request.Request(server_url(proxy) + '/v1/chat/completions',

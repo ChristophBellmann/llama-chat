@@ -28,7 +28,8 @@
 # ``script.sprich`` (Piper direkt) waren am CoreS3 Audio-Komm zu hören, die
 # Antworten nicht. Die Wyoming-TTS-Entität blieb dabei trotz Verbindungsfehler
 # verfügbar; ihr Zustand eignet sich nicht als Erreichbarkeitsprüfung.
-# ``binary_sensor.orpheus_tts_erreichbar`` prüft deshalb den echten TCP-Port.
+# ``binary_sensor.orpheus_tts_erreichbar`` nutzt den Bereitschaftscache des
+# Routers: Modell-/health und Wyoming-Port müssen beide bereit sein.
 # Die gemeinsame Umschaltautomation stellt die Pipelines auf Ramona, solange
 # Orpheus fehlt, und danach zurück. Die Auswahl in ``input_select.voice_tts``
 # bleibt dabei auf Jana: sie ist der Wunsch, nicht der Ist-Zustand.
@@ -39,11 +40,10 @@ command_line:
       name: Orpheus TTS erreichbar
       unique_id: orpheus_tts_erreichbar
       device_class: connectivity
-      command: >-
-        python3 /config/scripts/check_tcp.py 192.168.178.51 10401 --timeout 3
+      command: python3 /config/scripts/check_orpheus_ready.py
       payload_on: "ON"
       payload_off: "OFF"
-      scan_interval: 15
+      scan_interval: 5
 
 input_select:
   voice_tts:

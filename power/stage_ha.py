@@ -18,6 +18,8 @@ def stage(target):
     source = Path(__file__).resolve().parent
     router_path = target / "llm-router/router.py"
     router = router_path.read_text()
+    if "ReadinessMonitor" not in router:
+        raise RuntimeError("Zuerst den aktuellen HA-Router mit Bereitschaftscache und /status installieren")
     router = replace_once(router, "import uuid\n", "import uuid\n\nfrom ha_router_power import WorkstationPower, handle_power\n")
     router = replace_once(router, "        self.config = config\n",
                           "        self.config = config\n        self.workstation_power = WorkstationPower.from_environment()\n")
@@ -33,16 +35,19 @@ def stage(target):
                               "        with self.router.workstation_power.request(use_workstation):\n"
                               "            self._forward_request_inner(original_body)\n\n"
                               "    def _forward_request_inner(self, original_body: bytes | None) -> None:\n")
-    router = replace_once(router,
-        "        with self.router.workstation_power.request(use_workstation):\n"
-        "            self._forward_request_inner(original_body)\n\n"
-        "    def _forward_request_inner(self, original_body: bytes | None) -> None:\n",
-        "        with self.router.workstation_power.request(use_workstation) as benchmarking:\n"
-        "            if benchmarking and self.headers.get(TEST_BACKEND_HEADER) == 'primary':\n"
-        "                self._json_error(503, 'Workstation ist für den Modellvergleich reserviert.', 'benchmark_running')\n"
-        "                return\n"
-        "            self._forward_request_inner(original_body, fallback_only=bool(benchmarking))\n\n"
-        "    def _forward_request_inner(self, original_body: bytes | None, *, fallback_only: bool = False) -> None:\n")
+    if "wait_for_ready=False" not in router:
+        router = replace_once(router,
+            "        with self.router.workstation_power.request(use_workstation):\n"
+            "            self._forward_request_inner(original_body)\n\n"
+            "    def _forward_request_inner(self, original_body: bytes | None) -> None:\n",
+            "        with self.router.workstation_power.request(use_workstation) as benchmarking:\n"
+            "            if benchmarking and self.headers.get(TEST_BACKEND_HEADER) == 'primary':\n"
+            "                self._json_error(503, 'Workstation ist für den Modellvergleich reserviert.', 'benchmark_running')\n"
+            "                return\n"
+            "            self._forward_request_inner(original_body, fallback_only=bool(benchmarking))\n\n"
+            "    def _forward_request_inner(self, original_body: bytes | None, *, fallback_only: bool = False) -> None:\n")
+        router = router.replace(".request(use_workstation) as benchmarking:",
+                                ".request(use_workstation, wait_for_ready=False) as benchmarking:")
     router = replace_once(router,
         '        backend_names = [forced_backend] if forced_backend else ["primary", "fallback"]',
         '        backend_names = ["fallback"] if fallback_only else ([forced_backend] if forced_backend else ["primary", "fallback"])')
@@ -55,34 +60,37 @@ def stage(target):
                            "      - LLM_ROUTER_BIND=127.0.0.1:11436\n")
     dashboard_path = target / "config/lovelace/sprachassistent.yaml"
     dashboard = dashboard_path.read_text()
-    if "script.workstation_aufwecken" not in dashboard:
-        dashboard = replace_once(dashboard, "    icon: mdi:robot-outline\n    cards:\n", "    icon: mdi:robot-outline\n    cards:\n"
-            "      - type: entities\n        title: Workstation\n        show_header_toggle: false\n"
-            "        entities:\n          - entity: script.workstation_aufwecken\n"
-            "            name: Aufwecken\n          - entity: script.workstation_standby\n"
-            "            name: Standby\n          - entity: input_boolean.workstation_automatisch_schlafen\n")
-    if "select.workstation_modell" not in dashboard:
-        dashboard = replace_once(dashboard,
-            "          - entity: input_boolean.workstation_automatisch_schlafen\n",
-            "          - entity: input_boolean.workstation_automatisch_schlafen\n"
-            "          - entity: select.workstation_modell\n            name: Modell laden\n"
-            "          - entity: sensor.workstation_geladenes_modell\n            name: Geladenes Modell\n"
-            "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n")
-    if "script.workstation_modelle_testen" not in dashboard:
-        dashboard = replace_once(dashboard,
-            "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n",
-            "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n"
-            "          - entity: script.workstation_modelle_testen\n"
-            "          - entity: script.workstation_modellvergleich_stoppen\n"
-            "          - entity: sensor.workstation_modellvergleich\n")
-    if "sensor.workstation_modellstimme" not in dashboard:
-        import re
-        dashboard, count = re.subn(
-            r'(?m)^([ ]*)- entity: sensor.workstation_modellstatus\n([ ]*)name: Modellwechsel\n',
-            lambda m: m[0] + m[1] + '- entity: sensor.workstation_modellstimme\n'
-                      + m[2] + 'name: Stimme zum Modell\n', dashboard)
-        if count != 1:
-            raise RuntimeError('Dashboard-Modellstatus nicht eindeutig')
+    # Neuere HA-Dashboards verwalten Rechner separat. Dort keine alten
+    # Steuerzeilen hinzufügen und die gepflegte Oberfläche unverändert lassen.
+    if "Dashboard **Sonstiges**" not in dashboard:
+        if "script.workstation_aufwecken" not in dashboard:
+            dashboard = replace_once(dashboard, "    icon: mdi:robot-outline\n    cards:\n", "    icon: mdi:robot-outline\n    cards:\n"
+                "      - type: entities\n        title: Workstation\n        show_header_toggle: false\n"
+                "        entities:\n          - entity: script.workstation_aufwecken\n"
+                "            name: Aufwecken\n          - entity: script.workstation_standby\n"
+                "            name: Standby\n          - entity: input_boolean.workstation_automatisch_schlafen\n")
+        if "select.workstation_modell" not in dashboard:
+            dashboard = replace_once(dashboard,
+                "          - entity: input_boolean.workstation_automatisch_schlafen\n",
+                "          - entity: input_boolean.workstation_automatisch_schlafen\n"
+                "          - entity: select.workstation_modell\n            name: Modell laden\n"
+                "          - entity: sensor.workstation_geladenes_modell\n            name: Geladenes Modell\n"
+                "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n")
+        if "script.workstation_modelle_testen" not in dashboard:
+            dashboard = replace_once(dashboard,
+                "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n",
+                "          - entity: sensor.workstation_modellstatus\n            name: Modellwechsel\n"
+                "          - entity: script.workstation_modelle_testen\n"
+                "          - entity: script.workstation_modellvergleich_stoppen\n"
+                "          - entity: sensor.workstation_modellvergleich\n")
+        if "sensor.workstation_modellstimme" not in dashboard:
+            import re
+            dashboard, count = re.subn(
+                r'(?m)^([ ]*)- entity: sensor.workstation_modellstatus\n([ ]*)name: Modellwechsel\n',
+                lambda m: m[0] + m[1] + '- entity: sensor.workstation_modellstimme\n'
+                          + m[2] + 'name: Stimme zum Modell\n', dashboard)
+            if count != 1:
+                raise RuntimeError('Dashboard-Modellstatus nicht eindeutig')
     # Erst schreiben, nachdem alle erwarteten Stellen geprüft wurden.
     router_path.write_text(router)
     docker_path.write_text(docker)
@@ -90,6 +98,7 @@ def stage(target):
     dashboard_path.write_text(dashboard)
     shutil.copyfile(source / "ha_router_power.py", target / "llm-router/ha_router_power.py")
     shutil.copyfile(source / "ha_test_router.py", target / "llm-router/tests/test_workstation_power.py")
+    shutil.copyfile(source / "ha_check_orpheus.py", target / "config/scripts/check_orpheus_ready.py")
     shutil.copyfile(source / "workstation_ha.yaml", target / "config/packages/workstation_power.yaml")
     shutil.copyfile(source / "voice_tts_switch_ha.yaml", target / "config/packages/voice_tts_switch.yaml")
     shutil.copyfile(source / "workstation_models_ha.yaml", target / "config/packages/workstation_models.yaml")
