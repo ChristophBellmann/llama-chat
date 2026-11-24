@@ -7,6 +7,8 @@ cd "$ROOT_DIR"
 MODEL="$(./voice/run.sh orpheus-path)"
 
 export HSA_OVERRIDE_GFX_VERSION="${HSA_OVERRIDE_GFX_VERSION:-10.3.1}"
+# Home Assistant prüft /health im LAN, bevor es Jana aktiviert.
+export HOST="${HOST:-0.0.0.0}"
 export PORT="${PORT:-8082}"
 export MODEL_ALIAS="${MODEL_ALIAS:-orpheus-tts}"
 export CTX="${CTX:-4096}"
