@@ -342,7 +342,7 @@
     "Qwen3.8-27B-UD-IQ2_XXS.gguf": {
       "settings": {
         "GPU_LAYERS": "auto",
-        "CTX": 8192,
+        "CTX": 16384,
         "PARALLEL": 1,
         "BATCH_SIZE": 512,
         "UBATCH_SIZE": 256,
@@ -399,7 +399,9 @@
           "first_audio_s": 0.598
         }
       },
-      "notes": []
+      "notes": [
+        "24.11.2026: Kontext 8192 -> 16384. Der Sprachassistent-Prompt von Home Assistant hat mit Werkzeugen etwa 11.300 Tokens; 8192 lehnte jede Anfrage ab (exceed_context_size_error). Mehrbedarf etwa 272 MiB KV, mit Orpheus bleiben rund 0,9 GiB VRAM-Reserve."
+      ]
     },
     "gemma-4-E4B-it-ultra-uncensored-heretic-Q8_0.gguf": {
       "settings": {
