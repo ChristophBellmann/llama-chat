@@ -22,6 +22,13 @@ rest_command:
     content_type: application/json
     payload: '{{ {"model": modell} | to_json }}'
     timeout: 60
+  # „keine“ stoppt Orpheus auf der Workstation dauerhaft, „orpheus“ hebt das auf.
+  workstation_stimme:
+    url: http://127.0.0.1:11436/workstation/voice
+    method: POST
+    content_type: application/json
+    payload: '{{ {"voice": stimme} | to_json }}'
+    timeout: 60
 
 template:
   - select:
@@ -29,8 +36,11 @@ template:
         unique_id: workstation_modell
         icon: mdi:brain
         availability: "{{ (state_attr('sensor.workstation_modellstatus', 'models') or []) | length > 0 and states('sensor.workstation_modellvergleich') not in ['läuft', 'stellt wieder her'] }}"
-        state: "{{ state_attr('sensor.workstation_modellstatus', 'active') or 'unknown' }}"
-        options: "{{ state_attr('sensor.workstation_modellstatus', 'models') or [] }}"
+        # „Keines“ stoppt llama-server und entlädt das Modell (freier VRAM).
+        state: >-
+          {{ 'Keines' if is_state('sensor.workstation_modellstatus', 'aus')
+             else state_attr('sensor.workstation_modellstatus', 'active') or 'unknown' }}
+        options: "{{ ['Keines'] + (state_attr('sensor.workstation_modellstatus', 'models') or []) }}"
         select_option:
           - action: rest_command.workstation_modell_laden
             data:
@@ -62,14 +72,17 @@ template:
       - name: Workstation geladenes Modell
         unique_id: workstation_geladenes_modell
         icon: mdi:brain
-        state: "{{ state_attr('sensor.workstation_modellstatus', 'active') or 'unbekannt' }}"
+        state: >-
+          {{ 'Keines' if is_state('sensor.workstation_modellstatus', 'aus')
+             else state_attr('sensor.workstation_modellstatus', 'active') or 'unbekannt' }}
       - name: Workstation Modellstimme
         unique_id: workstation_modellstimme
         icon: mdi:account-voice
         state: >-
           {% set wunsch = states('input_select.voice_tts') %}
           {{ 'Ramona (Piper, lokal)'
-             if state_attr('sensor.workstation_modellstatus', 'voice') == 'ramona'
+             if state_attr('sensor.workstation_modellstatus', 'voice') in ['ramona', 'keine']
+             or wunsch == 'Keine'
              or (wunsch == 'Jana (Orpheus, Workstation)' and
                  not is_state('binary_sensor.orpheus_tts_erreichbar', 'on'))
              else wunsch }}

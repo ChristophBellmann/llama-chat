@@ -40,11 +40,13 @@ def trainer_active(lock_file=None):
     return False
 
 
-def activity(voice='orpheus'):
+def activity(ports=(8080, 8082)):
     reasons = []
     if trainer_active():
         reasons.append("Wakeword-Training oder GPU-Benchmark läuft")
-    for port in ((8080,) if voice == 'ramona' else (8080, 8082)):
+    # Nur Modelle, die laufen sollen: ein mit „Keines“ oder Stimme „keine“
+    # abgeschalteter Server meldete sonst dauerhaft unbekannte Aktivität.
+    for port in ports:
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/slots", timeout=2) as response:
                 slots = json.load(response)
@@ -107,11 +109,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
         self.close_connection = True
 
-    def voice_policy(self):
+    def model_ports(self):
         model_control = getattr(self.server, 'models', None)
         if isinstance(model_control, ModelControl):
-            return model_control.status()['voice']
-        return 'orpheus'
+            return model_control.active_ports()
+        return (8080, 8082)
 
     def do_GET(self):
         if not self.authorized():
@@ -121,7 +123,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/benchmark":
             self.reply(200, self.server.benchmark.status())
         elif self.path == "/status":
-            self.reply(200, activity(self.voice_policy()))
+            self.reply(200, activity(self.model_ports()))
         else:
             self.reply(404, {"error": "Unbekannter Pfad"})
 
@@ -151,6 +153,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     status, payload = self.server.benchmark.start(payload.get('models'))
             self.reply(status, payload)
             return
+        if self.path == "/voice":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 256:
+                    raise ValueError()
+                voice = json.loads(self.rfile.read(length)).get("voice")
+                if not isinstance(voice, str):
+                    raise ValueError()
+            except (ValueError, AttributeError):
+                self.reply(400, {"error": "Ungültige Stimmwahl"})
+                return
+            with self.server.sleep_lock:
+                status, payload = self.server.models.set_voice(voice)
+            self.reply(status, payload)
+            return
         if self.path == "/models":
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -177,7 +194,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if getattr(getattr(self.server, "models", None), "benchmark_active", False):
                 self.reply(409, {"error": "Modellvergleich läuft"})
                 return
-            state = activity(self.voice_policy())
+            state = activity(self.model_ports())
             if self.path == "/suspend-idle" and (
                 state["desktop_idle_seconds"] is None or state["desktop_idle_seconds"] < 1800
             ):

@@ -27,7 +27,7 @@ def should_start(control=None):
     configuration = control.dropin.read_text() if control.dropin.exists() else ''
     match = re.search(r'Environment="MODEL_PATH=(.*)"', configuration)
     model = Path(match[1]).name if match else None
-    return control.voice(model) != 'ramona'
+    return control.voice(model) == 'orpheus'
 
 
 if __name__ == '__main__':

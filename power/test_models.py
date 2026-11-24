@@ -15,10 +15,84 @@ class ModelTests(unittest.TestCase):
         (self.root / 'models').mkdir()
         for name in ('alt.gguf', 'neu.gguf'):
             (self.root / 'models' / name).touch()
-        self.control = ModelControl(self.root, self.root / 'model.conf')
+        self.control = ModelControl(self.root, self.root / 'model.conf', self.root / 'stimme.json')
         self.control.props = Mock(return_value={'model_path': str(self.root / 'models/alt.gguf')})
         self.control.systemctl = Mock()
         self.control.wait_ready = Mock()
+        self.control.enabled = Mock(return_value=True)
+        self.control.running = Mock(return_value=True)
+
+    def idle_slots(self):
+        response = Mock()
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock()
+        return patch('power.model_control.urllib.request.urlopen', return_value=response), patch(
+            'power.model_control.json.load', return_value=[{'is_processing': False}])
+
+    def test_keines_disables_llama_and_reports_off(self):
+        opened, loaded = self.idle_slots()
+        with opened, loaded:
+            status, payload = self.control.start('Keines')
+        self.assertEqual(status, 200)
+        self.control.systemctl.assert_called_once_with('disable', '--now', 'llama-server.service')
+        self.control.enabled.return_value = False
+        self.control.props.side_effect = OSError()
+        state = self.control.status()
+        self.assertEqual((state['status'], state['active']), ('aus', None))
+        self.assertEqual(self.control.active_ports(), (8082,))
+
+    def test_model_loads_from_keines_without_running_server(self):
+        self.control.enabled.return_value = False
+        self.control.props.side_effect = OSError()
+        opened, loaded = self.idle_slots()
+        with opened, loaded, patch('power.model_control.threading.Thread') as thread:
+            self.assertEqual(self.control.start('neu.gguf')[0], 202)
+        thread.assert_called_once()
+        self.control.change('neu.gguf')
+        calls = [call.args for call in self.control.systemctl.call_args_list]
+        self.assertLess(calls.index(('enable', 'llama-server.service')),
+                        calls.index(('restart', 'llama-server.service')))
+
+    def test_stopped_orpheus_does_not_block_model_change(self):
+        self.control.running.return_value = False
+        self.assertEqual(self.control.active_ports(), (8080,))
+
+    def test_failed_load_from_keines_stays_off(self):
+        self.control.enabled.return_value = False
+        self.control.props.side_effect = OSError()
+        self.control.wait_ready.side_effect = RuntimeError('Ladefehler')
+        self.control.change('neu.gguf')
+        calls = [call.args for call in self.control.systemctl.call_args_list]
+        self.assertEqual(calls[-1], ('disable', '--now', 'llama-server.service'))
+        self.assertEqual(self.control.state, 'Fehler')
+        self.assertFalse(self.control.dropin.exists())
+
+    def test_voice_keine_stops_orpheus_and_survives_model_change(self):
+        self.assertEqual(self.control.set_voice('keine')[0], 200)
+        self.control.systemctl.assert_called_once_with(
+            'stop', 'orpheus-manual.target', 'wyoming-orpheus.service', 'orpheus-llm.service')
+        self.assertEqual(self.control.status()['voice'], 'keine')
+        self.assertEqual(self.control.active_ports(), (8080,))
+        self.control.systemctl.reset_mock()
+        self.control.change('neu.gguf')
+        calls = [call.args for call in self.control.systemctl.call_args_list]
+        self.assertIn(('stop', 'wyoming-orpheus.service', 'orpheus-llm.service'), calls)
+        self.assertNotIn(('start', 'orpheus-llm.service', 'wyoming-orpheus.service'), calls)
+
+    def test_voice_orpheus_restarts_only_for_orpheus_model(self):
+        self.control.set_voice('keine')
+        self.control.systemctl.reset_mock()
+        self.assertEqual(self.control.set_voice('orpheus')[0], 200)
+        self.assertFalse(self.control.voice_state.exists())
+        self.control.systemctl.assert_called_once_with(
+            'start', '--no-block', 'orpheus-llm.service', 'wyoming-orpheus.service')
+        (self.root / 'profiles').mkdir()
+        (self.root / 'profiles/model-settings.json').write_text(json.dumps({
+            'version': 1, 'models': {'alt.gguf': {'voice': 'ramona'}}}))
+        self.control.systemctl.reset_mock()
+        self.control.set_voice('orpheus')
+        self.control.systemctl.assert_not_called()
+        self.assertEqual(self.control.set_voice('jana')[0], 400)
 
     def test_catalog_deduplicates_symlinks_and_excludes_external_files(self):
         (self.root / 'models/alias.gguf').symlink_to(self.root / 'models/alt.gguf')

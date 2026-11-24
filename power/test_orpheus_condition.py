@@ -21,7 +21,7 @@ class OrpheusConditionTests(unittest.TestCase):
             dropin.write_bytes(original)
             control = Mock(dropin=dropin)
             with patch.object(orpheus_condition, 'manual_start_active', return_value=False):
-                for voice, expected in [('ramona', False), ('orpheus', True)]:
+                for voice, expected in [('ramona', False), ('keine', False), ('orpheus', True)]:
                     control.voice.return_value = voice
                     self.assertEqual(orpheus_condition.should_start(control), expected)
                     control.voice.assert_called_with('chosen.gguf')

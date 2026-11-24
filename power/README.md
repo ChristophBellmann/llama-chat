@@ -236,3 +236,31 @@ voraus. Orpheus liest diesen Cache über `check_orpheus_ready.py`; der bestehend
 command_line-Sensor und seine Entitätsidentität bleiben erhalten. Modell-Health
 und Wyoming-Port müssen beide bereit sein. Neuere getrennte Rechner-Dashboards
 werden vom Staging nicht mit alten Steuerzeilen ergänzt.
+
+## Kein Modell, keine Stimme (freier VRAM)
+
+Seit 24.11.2026. **Modell laden: Keines** ruft `POST /models` mit
+`{"model": "Keines"}` auf: `systemctl --user disable --now llama-server.service`.
+Der Server bleibt damit auch nach einem Neustart aus; `/models` meldet
+`status: "aus"`. Die nächste Modellwahl aktiviert ihn wieder (`enable`, dann
+`restart`); scheitert das Laden, bleibt er aus. Der Router auf thinkthing
+zählt eine Workstation mit `status: "aus"` als wach (`awake()`), sonst würde er
+45 s Weckpakete senden und den Modellwechsel als „nicht aufgeweckt“ ablehnen.
+Sprachanfragen gehen in dieser Zeit an den Fallback.
+
+**Stimme zum Modell: Keine** ruft über `/workstation/voice` `POST /voice` mit
+`{"voice": "keine"}` auf: Merker `~/.config/workstation-power/stimme.json`
+(Laufzeitzustand, nicht im Git), dann Stopp von `orpheus-manual.target`,
+`wyoming-orpheus.service` und `orpheus-llm.service`. Solange der Merker
+besteht, gilt `voice()` = `keine`: Modellwechsel und `orpheus_condition.py`
+beim Systemstart starten Orpheus nicht. HA spricht dann mit Ramona. Jede andere
+Stimme sendet `{"voice": "orpheus"}`, löscht den Merker und startet Orpheus mit
+`--no-block`, wenn das geladene Modell Orpheus vorsieht.
+
+Standby- und Leerlaufprüfung fragen nur Ports ab, deren Dienst laufen soll
+(`active_ports()`); ein gestoppter Orpheus blockiert keinen Modellwechsel mehr.
+
+Geprüft am 24.11.2026 über HA: Keines → VRAM 10.989 → 164 MiB, Antwort über
+Fallback; Stimme Keine/Ramona setzt und löscht den Merker; IQ2_S aus Keines in
+45 s geladen, `n_ctx` 65.536. Nicht live geprüft: Stopp eines laufenden Orpheus
+über „Keine“ (nur Unittest).

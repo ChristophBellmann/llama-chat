@@ -108,6 +108,31 @@ class ModelRouterTests(unittest.TestCase):
         proxy.workstation_power.models.assert_not_called()
 
 
+class VoiceRouterTests(unittest.TestCase):
+    def test_stimmwahl_wird_geprueft_und_weitergegeben(self):
+        proxy = make_router(unavailable_url(), unavailable_url())
+        proxy.workstation_power.voice = Mock(return_value=(200, {'voice': 'keine'}))
+        with ServerContext(proxy):
+            request = urllib.request.Request(server_url(proxy) + '/workstation/voice',
+                data=b'{"voice":"keine"}', headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(request, timeout=3) as response:
+                self.assertEqual(json.load(response)['voice'], 'keine')
+            request = urllib.request.Request(server_url(proxy) + '/workstation/voice', data=b'{"voice":"jana"}')
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request, timeout=3)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+        proxy.workstation_power.voice.assert_called_once_with('keine')
+
+    def test_bewusst_abgeschaltetes_llm_gilt_als_wach(self):
+        power = WorkstationPower({"wake_timeout": 0.3, "wake_retry_after": 60})
+        power.ready = Mock(return_value=False)
+        power.llm_off = Mock(return_value=True)
+        power.send_magic_packet = Mock()
+        self.assertTrue(power.wake())
+        power.send_magic_packet.assert_not_called()
+
+
 class BenchmarkRouterTests(unittest.TestCase):
     def test_benchmark_nutzt_fallback_statt_testmodell(self):
         primary = recording_server(b'{"backend":"primary"}')

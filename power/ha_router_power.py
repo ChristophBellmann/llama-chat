@@ -50,6 +50,22 @@ class WorkstationPower:
         except (OSError, ValueError, http.client.HTTPException):
             return False
 
+    def llm_off(self):
+        """Wach, aber mit „Keines“ bewusst ohne LLM: dann antwortet 8080 nie."""
+        if not self.config or not self.config.get("power_url") or not self.config.get("token"):
+            return False
+        request = urllib.request.Request(
+            self.config["power_url"] + "/models",
+            headers={"Authorization": "Bearer " + self.config["token"]})
+        try:
+            with urllib.request.urlopen(request, timeout=2) as response:
+                return json.load(response).get("status") == "aus"
+        except (OSError, ValueError, http.client.HTTPException, AttributeError):
+            return False
+
+    def awake(self):
+        return self.ready() or self.llm_off()
+
     def send_magic_packet(self):
         mac = bytes.fromhex(self.config["mac"].replace(":", "").replace("-", ""))
         if len(mac) != 6:
@@ -62,7 +78,7 @@ class WorkstationPower:
         if not self.config:
             return False
         with self.wake_lock:
-            if self.ready():
+            if self.awake():
                 self.wake_failed_until = 0.0
                 return True
             if time.monotonic() < self.wake_failed_until:
@@ -73,7 +89,7 @@ class WorkstationPower:
                     self.send_magic_packet()
                 except OSError:
                     break
-                if self.ready():
+                if self.awake():
                     return True
                 time.sleep(min(2, max(0, deadline - time.monotonic())))
             self.wake_failed_until = time.monotonic() + self.config.get("wake_retry_after", 600)
@@ -140,6 +156,31 @@ class WorkstationPower:
                 return 200, {**self.model_cache, "ready": False,
                              "status": "nicht erreichbar", "error": "Workstation schläft oder ist nicht erreichbar"}
             return 503, {"error": "Modellschnittstelle nicht erreichbar"}
+
+    def voice(self, voice):
+        """Orpheus auf der Workstation aus- („keine“) oder wieder zulassen."""
+        if not self.config:
+            return 503, {"error": "Workstation-Steuerung ist nicht eingerichtet"}
+        if not self.wake():
+            return 503, {"error": "Workstation konnte nicht aufgeweckt werden"}
+        request = urllib.request.Request(
+            self.config["power_url"] + "/voice",
+            data=json.dumps({"voice": voice}).encode(),
+            headers={"Authorization": "Bearer " + self.config["token"],
+                     "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=40) as response:
+                payload = json.load(response)
+                self.model_cache = payload
+                return response.status, payload
+        except urllib.error.HTTPError as error:
+            try:
+                return error.code, json.load(error)
+            finally:
+                error.close()
+        except (OSError, ValueError, http.client.HTTPException):
+            return 503, {"error": "Stimmschnittstelle nicht erreichbar"}
 
     def benchmark(self, action=None, models=None):
         if not self.config or not self.config.get("power_url"):
@@ -219,12 +260,13 @@ def handle_power(handler):
     """Wird vor den vorhandenen GET/POST-Routen aufgerufen."""
     path = handler.path.split("?", 1)[0]
     if path not in ("/workstation", "/workstation/wake", "/workstation/suspend",
-                    "/workstation/suspend-idle", "/workstation/models", "/workstation/benchmark", "/workstation/benchmark/stop"):
+                    "/workstation/suspend-idle", "/workstation/models", "/workstation/voice",
+                    "/workstation/benchmark", "/workstation/benchmark/stop"):
         return False
-    if handler.command == "POST" and path not in ("/workstation/models", "/workstation/benchmark"):
+    if handler.command == "POST" and path not in ("/workstation/models", "/workstation/voice", "/workstation/benchmark"):
         handler._discard_declared_body()
     if handler.client_address[0] not in ("127.0.0.1", "::1"):
-        if handler.command == "POST" and path in ("/workstation/models", "/workstation/benchmark"):
+        if handler.command == "POST" and path in ("/workstation/models", "/workstation/voice", "/workstation/benchmark"):
             handler._discard_declared_body()
         handler._json_response(403, {"error": "Nur Home Assistant auf dem Server darf steuern"})
         return True
@@ -264,6 +306,19 @@ def handle_power(handler):
                 handler._json_response(400, {"error": "Ungültige Modellauswahl"})
                 return True
         status, payload = power.models(model)
+        handler._json_response(status, payload)
+    elif path == "/workstation/voice" and handler.command == "POST":
+        body = handler._read_request_body()
+        if body is None:
+            return True
+        try:
+            voice = json.loads(body).get("voice")
+            if voice not in ("keine", "orpheus"):
+                raise ValueError()
+        except (ValueError, AttributeError):
+            handler._json_response(400, {"error": "Ungültige Stimmwahl"})
+            return True
+        status, payload = power.voice(voice)
         handler._json_response(status, payload)
     elif handler.command == "GET" and path == "/workstation":
         handler._json_response(200, power.status())

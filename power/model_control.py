@@ -8,12 +8,18 @@ import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+# Auswahl „Keines“: llama-server ist aus und bleibt es auch nach einem Neustart.
+NO_MODEL = 'Keines'
+# Stimme „keine“: Orpheus bleibt aus, auch bei Modellwechsel und Systemstart.
+# Laufzeitzustand, nicht im Git.
+VOICE_STATE = Path.home() / '.config/workstation-power/stimme.json'
 
 
 class ModelControl:
-    def __init__(self, root=ROOT, dropin=None):
+    def __init__(self, root=ROOT, dropin=None, voice_state=None):
         self.root = Path(root)
         self.dropin = dropin or Path.home() / '.config/systemd/user/llama-server.service.d/zz-ha-model.conf'
+        self.voice_state = Path(voice_state) if voice_state else VOICE_STATE
         self.lock = threading.RLock()
         self.state = 'bereit'
         self.error = ''
@@ -36,7 +42,25 @@ class ModelControl:
         with urllib.request.urlopen('http://127.0.0.1:8080/props', timeout=2) as response:
             return json.load(response)
 
+    def enabled(self, unit):
+        result = subprocess.run(['systemctl', '--user', 'is-enabled', '--quiet', unit],
+                                check=False, capture_output=True, timeout=10)
+        return result.returncode == 0
+
+    def running(self, unit):
+        result = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', unit],
+                                check=False, capture_output=True, timeout=10)
+        return result.returncode == 0
+
+    def llama_off(self):
+        """„Keines“ ist gewählt: llama-server ist bewusst deaktiviert."""
+        return not self.enabled('llama-server.service')
+
+    def voice_off(self):
+        return self.voice_state.exists()
+
     def status(self):
+        off = self.llama_off()
         try:
             props = self.props()
             active = Path(props['model_path']).name
@@ -44,12 +68,18 @@ class ModelControl:
         except Exception:
             active, ready = None, False
         with self.lock:
+            if self.state != 'bereit':
+                state = self.state
+            else:
+                state = 'aus' if off else ('bereit' if ready else 'nicht bereit')
             return {'models': self.catalog(), 'active': active, 'ready': ready,
-                    'status': self.state if self.state != 'bereit' or ready else 'nicht bereit',
+                    'status': state,
                     'requested': self.requested, 'error': self.error,
                     'voice': self.voice(self.requested if self.state in ('lädt', 'stellt wieder her') else active)}
 
     def voice(self, model):
+        if self.voice_off():
+            return 'keine'
         profiles = self.root / 'profiles/model-settings.json'
         data = json.loads(profiles.read_text()) if profiles.exists() else {}
         voice = data.get('models', {}).get(model, {}).get('voice', 'orpheus')
@@ -60,13 +90,21 @@ class ModelControl:
     def prepare_services(self, model):
         # Das alte LLM zuerst freigeben: auch die Rückkehr zu Orpheus muss passen.
         self.systemctl('stop', 'llama-server.service')
-        if self.voice(model) == 'ramona':
-            self.systemctl('stop', 'wyoming-orpheus.service', 'orpheus-llm.service')
-        else:
+        if self.voice(model) == 'orpheus':
             self.systemctl('start', 'orpheus-llm.service', 'wyoming-orpheus.service')
+        else:
+            self.systemctl('stop', 'wyoming-orpheus.service', 'orpheus-llm.service')
+
+    def active_ports(self):
+        """Ports der Modelle, die gerade laufen sollen und damit arbeiten können."""
+        ports = [] if self.llama_off() else [8080]
+        # Ein gestoppter Orpheus belegt keine GPU und hat keine Slots zu prüfen.
+        if self.voice(self.status()['active']) == 'orpheus' and self.running('orpheus-llm.service'):
+            ports.append(8082)
+        return tuple(ports)
 
     def check_idle(self):
-        for port in ((8080,) if self.voice(self.status()['active']) == 'ramona' else (8080, 8082)):
+        for port in self.active_ports():
             with urllib.request.urlopen(f'http://127.0.0.1:{port}/slots', timeout=2) as response:
                 slots = json.load(response)
             if not isinstance(slots, list) or not slots or any(
@@ -75,7 +113,7 @@ class ModelControl:
 
     def start(self, model):
         with self.lock:
-            if model not in self.catalog():
+            if model != NO_MODEL and model not in self.catalog():
                 return 400, {'error': 'Unbekanntes Modell'}
             if self.state in ('lädt', 'stellt wieder her'):
                 return 409, {'error': 'Ein Modellwechsel läuft bereits'}
@@ -85,15 +123,59 @@ class ModelControl:
                 self.check_idle()
             except Exception:
                 return 409, {'error': 'Modellaktivität unbekannt oder beschäftigt; erst Dienste prüfen'}
-            current = self.status()
-            if not current['ready']:
-                return 409, {'error': 'Der LLM-Server ist noch nicht bereit'}
-            if current['active'] == model:
-                self.state, self.error = 'bereit', ''
-                return 200, self.status()
+            if model == NO_MODEL:
+                return self.stop_llm()
+            # Aus „Keines“ heraus gibt es keinen laufenden Server zu prüfen.
+            if not self.llama_off():
+                current = self.status()
+                if not current['ready']:
+                    return 409, {'error': 'Der LLM-Server ist noch nicht bereit'}
+                if current['active'] == model:
+                    self.state, self.error = 'bereit', ''
+                    return 200, self.status()
             self.state, self.error, self.requested = 'lädt', '', model
             threading.Thread(target=self.change, args=(model,), daemon=True).start()
             return 202, self.status()
+
+    def stop_llm(self):
+        """„Keines“: Modell entladen und llama-server auch für den Systemstart abschalten."""
+        with self.lock:
+            try:
+                self.systemctl('disable', '--now', 'llama-server.service')
+            except Exception:
+                self.state, self.error = 'Fehler', 'llama-server ließ sich nicht stoppen'
+                return 500, self.status()
+            self.state, self.error, self.requested = 'bereit', '', None
+            return 200, self.status()
+
+    def set_voice(self, voice):
+        """„keine“ stoppt Orpheus dauerhaft, „orpheus“ hebt das wieder auf."""
+        if voice not in ('keine', 'orpheus'):
+            return 400, {'error': 'Unbekannte Stimme'}
+        with self.lock:
+            if self.state in ('lädt', 'stellt wieder her'):
+                return 409, {'error': 'Ein Modellwechsel läuft gerade'}
+            if self.benchmark_active:
+                return 409, {'error': 'Modellvergleich läuft; zuerst abbrechen'}
+            try:
+                if voice == 'keine':
+                    self.voice_state.parent.mkdir(parents=True, exist_ok=True)
+                    self.voice_state.write_text(json.dumps({'voice': 'keine'}) + '\n')
+                    # Das Menü-Target zuerst, sonst hielte es die Dienste aktiv.
+                    self.systemctl('stop', 'orpheus-manual.target',
+                                   'wyoming-orpheus.service', 'orpheus-llm.service')
+                else:
+                    self.voice_state.unlink(missing_ok=True)
+                    active = self.status()['active']
+                    if active and self.voice(active) == 'orpheus':
+                        # Ohne --no-block wartete systemctl auf das ExecStartPre
+                        # der Wyoming-Brücke (bis 120 s) und liefe in den Timeout.
+                        self.systemctl('start', '--no-block', 'orpheus-llm.service',
+                                       'wyoming-orpheus.service')
+            except Exception:
+                self.error = 'Stimme ließ sich nicht umschalten; Orpheus-Dienste prüfen'
+                return 500, {'error': self.error}
+            return 200, self.status()
 
     def systemctl(self, *args):
         subprocess.run(['systemctl', '--user', *args], check=True, capture_output=True, timeout=30)
@@ -156,6 +238,7 @@ class ModelControl:
     def change(self, model):
         previous = self.dropin.read_bytes() if self.dropin.exists() else None
         old_model = self.status()['active']
+        was_off = self.llama_off()
         with self.lock:
             self.state, self.requested = 'lädt', model
         try:
@@ -168,6 +251,8 @@ class ModelControl:
             temporary.replace(self.dropin)
             self.systemctl('daemon-reload')
             self.prepare_services(model)
+            if was_off:
+                self.systemctl('enable', 'llama-server.service')
             self.systemctl('restart', 'llama-server.service')
             self.wait_ready(path.name)
             with self.lock:
@@ -182,6 +267,12 @@ class ModelControl:
                 else:
                     self.dropin.write_bytes(previous)
                 self.systemctl('daemon-reload')
+                if was_off:
+                    # Vorher war „Keines“ gewählt: dorthin zurück, Orpheus wie gewählt.
+                    self.systemctl('disable', '--now', 'llama-server.service')
+                    with self.lock:
+                        self.state, self.error, self.requested = 'Fehler', 'Modell ließ sich nicht laden; kein Modell geladen', None
+                    return
                 self.prepare_services(old_model)
                 self.systemctl('restart', 'llama-server.service')
                 self.wait_ready(old_model)

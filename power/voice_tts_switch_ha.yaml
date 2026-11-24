@@ -34,6 +34,11 @@
 # Orpheus fehlt, und danach zurück. Die Auswahl in ``input_select.voice_tts``
 # bleibt dabei auf Jana: sie ist der Wunsch, nicht der Ist-Zustand.
 # Das Modellprofil kann Ramona erzwingen (Qwen3.8 IQ2_S), auch im Benchmark.
+#
+# ``Keine`` ist keine Stimme, sondern „keine Workstation-Stimme“: Orpheus wird
+# auf der Workstation gestoppt und entladen (freier VRAM) und bleibt auch bei
+# Modellwechsel und Neustart aus. Gesprochen wird dann mit Ramona. Erst die
+# Wahl einer anderen Stimme lässt Orpheus wieder zu.
 
 command_line:
   - binary_sensor:
@@ -53,6 +58,7 @@ input_select:
       - "Ramona (Piper, lokal)"
       - "Greta (NeuTTS, lokal)"
       - "Jana (Orpheus, Workstation)"
+      - "Keine"
 
 shell_command:
   set_voice_tts: >-
@@ -92,7 +98,8 @@ automation:
           gewaehlt: >-
             {% set wunsch = states('input_select.voice_tts') %}
             {{ 'Ramona (Piper, lokal)'
-               if state_attr('sensor.workstation_modellstatus', 'voice') == 'ramona'
+               if state_attr('sensor.workstation_modellstatus', 'voice') in ['ramona', 'keine']
+               or wunsch == 'Keine'
                or (wunsch == 'Jana (Orpheus, Workstation)' and
                    not is_state('binary_sensor.orpheus_tts_erreichbar', 'on'))
                else wunsch }}
@@ -139,3 +146,44 @@ automation:
                 sprechen weiterhin mit der bisherigen Stimme, und die Auswahl
                 wurde zurückgesetzt.
                 {{ switch_result.stderr }}
+
+  - id: voice_tts_workstation_stimme
+    alias: "Voice - Workstation-Stimme ein/aus"
+    description: >-
+      Stoppt Orpheus auf der Workstation, wenn „Keine“ gewählt wird, und lässt
+      es beim Wechsel weg von „Keine“ wieder zu. Andere Wechsel wecken die
+      Workstation nicht. Scheitert der Aufruf, geht die Auswahl zurück.
+    mode: queued
+    max: 5
+    trigger:
+      - platform: state
+        entity_id: input_select.voice_tts
+    condition:
+      - condition: template
+        value_template: >-
+          {{ trigger.from_state is not none and trigger.to_state is not none
+             and 'Keine' in [trigger.from_state.state, trigger.to_state.state]
+             and trigger.from_state.state != trigger.to_state.state
+             and trigger.to_state.context.parent_id is none }}
+    # parent_id: das Zurücksetzen nach einem Fehlschlag stammt aus dieser
+    # Automation und darf sie nicht erneut auslösen (sonst Pendeln).
+    action:
+      - action: rest_command.workstation_stimme
+        data:
+          stimme: "{{ 'keine' if trigger.to_state.state == 'Keine' else 'orpheus' }}"
+        response_variable: ergebnis
+      - if: "{{ ergebnis.status != 200 }}"
+        then:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.voice_tts
+            data:
+              option: "{{ trigger.from_state.state }}"
+          - action: persistent_notification.create
+            data:
+              notification_id: "workstation_stimme_{{ now().timestamp() | int }}"
+              title: Workstation-Stimme nicht umgeschaltet
+              message: "{{ ergebnis.content }}"
+      - action: homeassistant.update_entity
+        target:
+          entity_id: sensor.workstation_modellstatus
